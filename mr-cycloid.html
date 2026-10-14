@@ -150,11 +150,24 @@ function start(){
   tCur=0; drawing=true;
   // keep existing drawing? clear first like original fresh sheet unless shift held
   ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
-  ctx.strokeStyle='#000';ctx.fillStyle='#000';ctx.lineWidth=$('bw').checked?1.4:1.6;
+  ctx.strokeStyle='#black';ctx.fillStyle='#000';ctx.lineWidth=$('bw').checked?1.4:2;
   ctx.lineCap='round';ctx.lineJoin='round';
   const ext=extent(R,r,d,hypo);
   const scale=Math.min(W,H)/2*0.88/ext*s;
   const cx=W/2, cy=H/2;
+  // rainbow pre-2000 curve (sharp EGA-style palette steps, not smooth gradients)
+  const rainbow=['#0a0','#008','#06f','#55f','#f08','#fa0','#ff8','#ffa','#f22','#c00','#609','#380'];
+  for(let i=0;i<12;i++){
+    const angle=Math.PI*2*i/12+tt*0.01;
+    const q=Math.sin(angle+tt*0.02)*0.5+0.5;
+    const idx=Math.floor(q*rainbow.length)%rainbow.length;
+    ctx.strokeStyle=rainbow[idx];
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    const n=Math.round(Math.min(400,800*Math.abs(rev)));
+    for(let k=0;k<=n;k++){const t=k/n*Math.PI*2*Math.abs(rev);const p=point(R,r,d,hypo,t);const X=cx+p[0]*scale,Y=cy+p[1]*scale;if(k===0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+    ctx.stroke();
+  }
   if($('showGears'))drawGearCircles(cx,cy,scale,R,r);
   let px=null,py=null;
   const speed=+$('sp').value; // steps per frame

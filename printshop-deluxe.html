@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Print Shop Deluxe — Homage (1992)</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0a0a5a;color:#000;font-family:'Courier New',monospace}
+#bar{background:#000;color:#ff0;padding:6px 10px;font-size:13px;font-weight:bold;display:flex;justify-content:space-between;border-bottom:3px double #ff0}
+#main{display:flex;max-width:1000px;margin:0 auto;gap:8px;padding:8px}
+#panel{width:300px;background:#c0c0c0;border:3px outset #fff;padding:8px;font-size:12px}
+#panel h3{background:#000;color:#fff;margin:8px 0 4px;padding:3px 6px;font-size:12px}
+button{font-family:inherit;border:2px outset #fff;background:#e0e0e0;padding:4px 8px;cursor:pointer;margin:2px;font-size:12px}
+button:active{border-style:inset}button.primary{background:#000;color:#ff0;font-weight:bold}
+select,input,textarea{font-family:inherit;font-size:12px;width:100%;margin:2px 0}
+#stage{flex:1;background:#fff;border:3px inset #fff;min-height:80vh;display:flex;flex-direction:column}
+#paper{flex:1;background:#fff;padding:18px;overflow:auto}
+.cliprow{display:flex;gap:4px;flex-wrap:wrap}.clip{font-size:26px;border:2px solid #999;padding:2px 6px;cursor:pointer;background:#fff}.clip.on{border-color:#f00;background:#ffe}
+.brow{display:flex;gap:4px;flex-wrap:wrap}.b{border:2px solid #000;padding:2px 6px;cursor:pointer;font-size:12px}.b.on{background:#000;color:#fff}
+.fonts button{font-size:13px}
+</style>
+</head>
+<body>
+<div id="bar"><span>★ THE PRINT SHOP DELUXE — homage (Broderbund 1992)</span><span>v1.0 spirit • DOS</span></div>
+<div id="main">
+<div id="panel">
+<h3>1. Project</h3>
+<div id="projs"><button class="primary">Greeting Card</button><button>Banner</button><button>Sign</button><button>Letterhead</button></div>
+<h3>2. Border</h3>
+<div class="brow" id="borders"></div>
+<h3>3. Clip Art</h3>
+<div class="cliprow" id="clips"></div>
+<h3>4. Font</h3>
+<div class="fonts" id="fonts"><button>Serif</button><button>Sans</button><button>Mono</button><button>Fancy</button></div>
+<h3>5. Text</h3>
+<label>Headline</label><input id="h1" value="Happy Birthday!">
+<label>Message</label><textarea id="body" rows="3">Wishing you joy, cake, and vintage clip-art!</textarea>
+<label>Inside / footer</label><input id="foot" value="— from your DOS pal">
+<div><button id="print" class="primary">🖨 Print</button><button id="png">💾 Export PNG</button></div>
+<p style="font-size:11px">Homage: pick border + clip-art + font like the 5-floppy original. Card folds in preview. Use Print → PDF to “dot-matrix” it.</p>
+</div>
+<div id="stage"><div id="paper"><canvas id="c" width="640" height="840"></canvas></div></div>
+</div>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d');
+let proj='Greeting Card',border='*',font='Serif',clip='🎂';
+const BORDERS=['*','#','%','+','♥','★','═','::','##','..'];
+const CLIPS=['🎂','🎈','� flowers'.slice(0,2),'🌟','🎄','🐱','🚗','⛵','🍎','🏠','🐶','✈','🌙','☀','🎃','📚'];
+// normalize flower
+CLIPS[2]='🌸';
+const FONTS={Serif:'Georgia,serif',Sans:'Arial,sans-serif',Mono:'Courier New,monospace',Fancy:'Comic Sans MS,cursive'};
+function mkBtns(el,arr,cb){const e=document.getElementById(el);[...e.children].forEach(()=>{});e.innerHTML='';arr.forEach(v=>{const b=document.createElement(typeof v==='string'?'button':'button');b.textContent=v;b.className='b';if(el==='clips'){b.className='clip';}b.onclick=()=>{[...e.children].forEach(q=>q.classList.remove('on'));b.classList.add('on');cb(v);};e.appendChild(b);});e.children[0].classList.add('on');}
+mkBtns('borders',BORDERS,v=>{border=v;draw();});
+mkBtns('clips',CLIPS,v=>{clip=v;draw();});
+document.getElementById('projs').querySelectorAll('button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#projs button').forEach(q=>q.classList.remove('primary'));b.classList.add('primary');proj=b.textContent;draw();});
+document.getElementById('fonts').querySelectorAll('button').forEach(b=>b.onclick=()=>{font=b.textContent;draw();});
+['h1','body','foot'].forEach(id=>document.getElementById(id).addEventListener('input',draw));
+function borderDraw(){
+ x.save();x.fillStyle='#000';x.font='14px monospace';x.textAlign='left';
+ const w=640,h=proj==='Banner'?360:840;
+ for(let px=8;px<w-8;px+=14){x.fillText(border,px,20);x.fillText(border,px,h-10);}
+ for(let py=20;py<h-10;py+=16){x.fillText(border,8,py);x.fillText(border,w-16,py);}
+ x.restore();
+}
+function draw(){
+ const W=640,H=proj==='Banner'?360:840;cv.width=W;cv.height=H;
+ x.fillStyle='#fff';x.fillRect(0,0,W,H);
+ x.strokeStyle='#000';x.lineWidth=2;x.strokeRect(4,4,W-8,H-8);
+ borderDraw();
+ const h1=document.getElementById('h1').value,body=document.getElementById('body').value,foot=document.getElementById('foot').value;
+ x.fillStyle='#000';x.textAlign='center';
+ const ff=FONTS[font];
+ x.font=(proj==='Banner'?'bold 64px ':'bold 44px ')+ff;
+ x.fillText(h1,W/2,proj==='Banner'?150:150,W-120);
+ // clip art row
+ x.font='72px serif';
+ if(proj==='Banner'){x.fillText(clip+'  '+clip+'  '+clip,W/2,260);}
+ else{x.fillText(clip,W/2-90,260);x.fillText(clip,W/2+90,260);
+  // fold line for card
+  if(proj==='Greeting Card'){x.save();x.setLineDash([8,6]);x.beginPath();x.moveTo(20,H/2+40);x.lineTo(W-20,H/2+40);x.stroke();x.restore();
+   x.font='16px monospace';x.fillText('— — — fold here — — —',W/2,H/2+60);}
+ }
+ x.font='20px '+ff;
+ wrap(body,W/2,(proj==='Banner'?300:H/2+110),W-140,28);
+ x.font='italic 18px '+ff;x.fillText(foot,W/2,H-60,W-120);
+ x.font='12px monospace';x.textAlign='left';x.fillText(proj+' • '+font+' • Print Shop Deluxe homage',30,H-28);
+}
+function wrap(t,cx,y,mw,lh){const words=t.split(/\s+/);let line='',yy=y;x.textAlign='center';for(const w of words){const test=line?line+' '+w:w;if(x.measureText(test).width>mw){x.fillText(line,cx,yy);line=w;yy+=lh;}else line=test;}if(line)x.fillText(line,cx,yy);}
+document.getElementById('print').onclick=()=>window.print();
+document.getElementById('png').onclick=()=>{const a=document.createElement('a');a.download='printshop-'+proj.toLowerCase().replace(/\s/g,'-')+'.png';a.href=cv.toDataURL('image/png');a.click();};
+draw();
+</script>
+</body>
+</html>

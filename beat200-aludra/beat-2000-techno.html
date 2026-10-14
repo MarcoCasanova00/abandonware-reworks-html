@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Beat 2000 - Techno 1 (homage)</title>
+<style>
+*{box-sizing:border-box;user-select:none}
+body{margin:0;background:#222;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Arial,Helvetica,sans-serif}
+#win{width:min(660px,98vw);border:2px solid #0a3a8a;box-shadow:0 0 0 2px #fff,8px 8px 0 rgba(0,0,0,.6);background:#000}
+#title{background:linear-gradient(#2a7de1,#0a3a9a);color:#fff;font-size:13px;font-weight:bold;padding:4px 8px;display:flex;justify-content:space-between;align-items:center}
+#title .btns span{display:inline-block;width:22px;text-align:center;background:#c0c0c0;color:#000;margin-left:4px;border:1px outset #fff;font-size:12px}
+#deck{position:relative;width:100%;aspect-ratio:640/475;background:#1a1a1a;overflow:hidden}
+/* speakers */
+.spk{position:absolute;top:-40px;width:340px;height:280px;background:radial-gradient(circle at 50% 40%,#3a3a3a 0 18%,#111 19% 34%,#2c2c2c 35% 60%,#0a0a0a 61%);border-radius:50%;}
+.spk.left{left:-70px;transform:rotate(-12deg)} .spk.right{right:-70px;transform:rotate(12deg)}
+.spk:after{content:"";position:absolute;inset:20px;border-radius:50%;background:repeating-radial-gradient(circle,#222 0 2px,#333 2px 4px);opacity:.7}
+/* main metal disc */
+#metal{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);width:92%;height:96%;
+ background:linear-gradient(160deg,#8a9aa8,#5a6a7a 30%,#9fb0c0 50%,#4a5a6a 70%,#7a8a9a);
+ border-radius:50% 50% 48% 48%/60% 60% 40% 40%;border:3px solid #222;box-shadow:inset 0 0 60px rgba(0,0,0,.6),inset 0 2px 8px #fff;
+ overflow:hidden}
+#metal:before{content:"";position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");pointer-events:none}
+#brand{position:absolute;left:6%;top:38%;transform:rotate(-18deg);color:#eee;font-weight:900;font-style:italic;font-size:18px;text-shadow:1px 1px 0 #000}
+#lcd{position:absolute;left:50%;top:6%;transform:translateX(-50%);width:46%;background:#050505;border:3px ridge #aaa;border-radius:18px 18px 6px 6px;padding:6px 12px;color:#39ff6a;font-family:'Courier New',monospace;font-size:13px;line-height:1.35;box-shadow:inset 0 0 12px #000;z-index:3}
+#lcd b{color:#7dff9a}
+#vu-top{position:absolute;left:50%;top:0;transform:translateX(-50%);display:flex;gap:2px}
+#vu-top i{width:8px;height:18px;background:#333;display:block}
+#transport{position:absolute;left:50%;top:32%;transform:translateX(-50%);display:flex;gap:14px;z-index:3}
+.tbtn{width:64px;height:30px;border-radius:50%;background:linear-gradient(#ddd,#888);border:2px outset #fff;font-size:18px;color:#333;cursor:pointer;box-shadow:2px 2px 4px #000}
+.tbtn:active{border-style:inset}
+#pads{position:absolute;left:50%;top:44%;transform:translateX(-50%);display:grid;grid-template-columns:repeat(5,64px);gap:5px;background:#222;padding:10px;border-radius:18px;box-shadow:inset 0 0 0 3px #111,0 2px 6px #000;z-index:3}
+.pad{background:linear-gradient(#e8e8e8,#999);border:2px outset #fff;border-radius:12px;height:48px;position:relative;cursor:pointer;font-weight:bold;color:#a00;font-size:14px}
+.pad small{position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:10px;height:10px;background:#a00;border-radius:50%;box-shadow:inset 0 0 3px #000}
+.pad.hit{background:linear-gradient(#fff,#bbb)} .pad.hit small{background:#ff0;box-shadow:0 0 8px #ff0}
+.pad span{position:absolute;top:4px;left:0;right:0;text-align:center}
+/* left volume/pan */
+.side{position:absolute;top:52%;font-size:11px;font-weight:bold;color:#39ff6a;z-index:3}
+#volL{left:2%}.ledrow{display:flex;gap:3px;margin:4px 0}
+.ledrow i{width:12px;height:12px;border-radius:50%;background:linear-gradient(#ddd,#777);border:1px solid #000;display:block}
+.curve{background:#0a0a0a;border-radius:20px;padding:4px 10px;transform:rotate(-8deg);border:1px solid #333}
+/* right menu */
+#menuR{right:2%;top:46%;position:absolute;z-index:3;display:flex;gap:6px}
+#menuR .col{display:flex;flex-direction:column;gap:8px}
+.pill{background:#0a0a0a;color:#fff;font-size:10px;font-weight:bold;border-radius:12px;padding:4px 10px;border:1px solid #555;cursor:pointer}
+.pill.on{color:#39ff6a;border-color:#39ff6a}
+#meter{display:flex;flex-direction:column-reverse;gap:2px;align-items:center}
+#meter i{width:14px;height:6px;background:#123;display:block} #meter i.lit{background:#39ff6a;box-shadow:0 0 4px #39ff6a}
+#hint{background:#000;color:#0f0;font-size:11px;padding:4px 8px;font-family:monospace}
+</style>
+</head>
+<body>
+<div id="win">
+<div id="title"><span>◉ Beat 2000 - Techno 1</span><span class="btns"><span>_</span><span>▢</span><span>✕</span></span></div>
+<div id="deck">
+<div class="spk left"></div><div class="spk right"></div>
+<div id="metal"></div>
+<div id="brand">Beat 2000</div>
+<div id="vu-top"></div>
+<div id="lcd"><div style="text-align:center">POWER</div><div id="lcdtxt">1. ICYMBAL1<br>Volume:&nbsp;&nbsp;&nbsp;70<br>Pan:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;0</div></div>
+<div id="transport"><button class="tbtn" id="play">▶</button><button class="tbtn" id="stop">■</button><button class="tbtn" id="rec">●</button></div>
+<div id="pads"></div>
+<div class="side" id="volL"><div class="curve">▼ VOLUME <span id="vv">70</span></div><div class="ledrow" id="volLeds"></div>
+<div class="ledrow" id="volLeds2"></div><div class="curve">▲ PANNING <span id="pv">0</span></div></div>
+<div id="menuR"><div class="col">
+<div class="pill on" data-k="TECHNO 160">● FILES</div><div class="pill" data-k="TECHNO 120">● DRUMATIK</div>
+<div class="pill" data-k="TECHNO 140">● AUDIOMATIK</div><div class="pill">● PRO 2000</div></div>
+<div id="meter"></div></div>
+</div>
+<div id="hint">click pads / keys 1-9 Q W E R T Y U I O P A S D F = 20 sounds • SPACE = play/stop techno loop 160BPM • homage, WebAudio synth, no samples</div>
+</div>
+<script>
+// ---- 1:1-look techno drum machine, all synth ----
+const NAMES=["ICYMBAL1","KICK 1","HAT CLSD","SNARE 1","CLAP","KICK 2","BASS C1","HAT OPEN","RIM","STAB","KICK 3","BASS D#","CRASH","TOM LO","SHKR","KICK 4","BASS F","HOH","FX RISR","REVCYMB"];
+let AC=null,master,panN,analyser,vol=0.7,pan=0,playing=false,step=0,nextT=0;
+function ac(){if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();panN=AC.createStereoPanner?AC.createStereoPanner():null;analyser=AC.createAnalyser();analyser.fftSize=64;master.gain.value=vol;if(panN){panN.pan.value=pan;master.connect(panN);panN.connect(analyser);analyser.connect(AC.destination);}else{master.connect(analyser);analyser.connect(AC.destination);}}if(AC.state==='suspended')AC.resume();return AC;}
+function noiseBuf(d){const a=ac(),b=a.createBuffer(1,a.sampleRate*d,a.sampleRate),o=b.getChannelData(0);for(let i=0;i<o.length;i++)o[i]=Math.random()*2-1;return b;}
+let NB=null;
+function env(g,t0,a,d,s){g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(s,t0+a);g.gain.exponentialRampToValueAtTime(0.0001,t0+a+d);}
+function trig(i,t0){
+ const a=ac();t0=t0||a.currentTime;if(!NB)NB=noiseBuf(1);
+ const g=a.createGain();g.connect(master);const v=(i%5===1?0.9:0.55);
+ const osc=(ty,f0,f1,dur)=>{const o=a.createOscillator(),gg=a.createGain();o.type=ty;o.frequency.setValueAtTime(f0,t0);o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t0+dur);o.connect(gg);gg.connect(g);env(gg,t0,0.002,dur,v);o.start(t0);o.stop(t0+dur+0.05);};
+ const nz=(dur,hp)=>{const s=a.createBufferSource();s.buffer=NB;const f=a.createBiquadFilter();f.type='highpass';f.frequency.value=hp||1000;const gg=a.createGain();s.connect(f);f.connect(gg);gg.connect(g);env(gg,t0,0.001,dur,v*0.8);s.start(t0);s.stop(t0+dur+0.05);};
+ const k=i%10;
+ if(k===1||k===5||k===0&&i<12){osc('sine',150,40,0.28);} // kick-ish
+ switch(i){
+  case 0: case 18: nz(0.6,5000);break;
+  case 1: case 5: case 10: case 15: osc('sine',160,38,0.3);break;
+  case 2: nz(0.08,7000);break;
+  case 3: nz(0.18,1800);osc('triangle',220,140,0.12);break;
+  case 4: nz(0.25,1200);break;
+  case 6: case 11: case 16: osc('sawtooth',65.4*(1+i*0.02),60,0.35);break;
+  case 7: nz(0.35,6000);break;
+  case 8: osc('square',800,700,0.06);break;
+  case 9: osc('sawtooth',440,220,0.25);nz(0.15,3000);break;
+  case 12: nz(0.9,4000);break;
+  case 13: osc('sine',120,60,0.25);break;
+  case 14: nz(0.12,8000);break;
+  case 17: nz(0.2,9000);osc('square',1200,900,0.1);break;
+  case 19: nz(1.1,3000);break;
+ }
+}
+// pads UI
+const padsEl=document.getElementById('pads');
+NAMES.forEach((n,i)=>{
+ const d=document.createElement('div');d.className='pad';d.innerHTML=`<span>${i+1}</span><small></small>`;
+ d.title=n;
+ const hit=()=>{ac();trig(i);document.querySelectorAll('.pad small').forEach(s=>s.parentElement.classList.remove('hit'));d.classList.add('hit');
+  document.getElementById('lcdtxt').innerHTML=`${i+1}. ${n}<br>Volume:&nbsp;&nbsp;&nbsp;${Math.round(vol*100)}<br>Pan:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;${Math.round(pan*50)}`;
+  setTimeout(()=>d.classList.remove('hit'),140);};
+ d.onclick=hit;d._hit=hit;padsEl.appendChild(d);
+});
+// vu top bars
+const vt=document.getElementById('vu-top');for(let i=0;i<14;i++){const b=document.createElement('i');vt.appendChild(b);}
+// meter
+const mt=document.getElementById('meter');for(let i=0;i<16;i++){const b=document.createElement('i');mt.appendChild(b);}
+// vol leds
+for(const id of ['volLeds','volLeds2']){const r=document.getElementById(id);for(let i=0;i<9;i++){r.appendChild(document.createElement('i'));}}
+// sequencer: 16-step techno 160bpm
+const PAT={kick:[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],hat:[0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,1],bass:[1,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0],stab:[0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0],open:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1]};
+function sched(){
+ if(!playing)return;
+ const a=ac(),spb=60/160/4;
+ while(nextT<a.currentTime+0.25){
+  const s=step%16;
+  if(PAT.kick[s])trig(1,nextT);
+  if(PAT.hat[s])trig(2,nextT);
+  if(PAT.bass[s])trig(6,nextT);
+  if(PAT.stab[s])trig(9,nextT);
+  if(PAT.open[s])trig(7,nextT);
+  // light pad
+  setTimeout(((ss)=>()=>{const el=padsEl.children[ss%20];if(el){el.classList.add('hit');setTimeout(()=>el.classList.remove('hit'),110);}})(s),Math.max(0,(nextT-a.currentTime)*1000));
+  nextT+=spb;step++;
+ }
+ setTimeout(sched,80);
+}
+document.getElementById('play').onclick=()=>{ac();if(playing)return;playing=true;step=0;nextT=AC.currentTime+0.05;sched();};
+document.getElementById('stop').onclick=()=>playing=false;
+document.getElementById('rec').onclick=()=>{ac();trig(12);};
+document.getElementById('volL').onclick=(e)=>{vol=Math.min(1,vol+0.1);if(master)master.gain.value=vol;document.getElementById('vv').textContent=Math.round(vol*100);};
+document.querySelectorAll('.pill').forEach(p=>p.onclick=()=>{document.querySelectorAll('.pill').forEach(q=>q.classList.remove('on'));p.classList.add('on');});
+addEventListener('keydown',e=>{
+ if(e.key===' '){e.preventDefault();(playing?document.getElementById('stop'):document.getElementById('play')).click();}
+ const map='123456789QWERTYUIOPASDF';const k=e.key.toUpperCase();const i=map.indexOf(k);
+ if(i>=0&&i<20)padsEl.children[i]._hit();
+});
+// analyser -> meter/vu animation
+(function anim(){
+ requestAnimationFrame(anim);
+ if(!analyser)return;
+ const d=new Uint8Array(analyser.frequencyBinCount);analyser.getByteFrequencyData(d);
+ const bars=vt.children,mb=mt.children;
+ for(let i=0;i<bars.length;i++){const v=d[i+2]/255;bars[i].style.background=v>0.5?(i<5?'#0f0':i<9?'#ff0':'#f00'):'#333';bars[i].style.height=(8+v*16)+'px';}
+ for(let i=0;i<mb.length;i++){mb[i].className=d[i]/255>0.35?'lit':'';}
+})();
+</script>
+</body>
+</html>

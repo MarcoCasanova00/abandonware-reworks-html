@@ -58,8 +58,15 @@
 <div id="statusbar">
   <label>Pattern:</label>
   <select id="sel"></select>
+  <select id="pal" title="palette">
+    <option value="Neon">Neon</option>
+    <option value="C64">C64</option>
+    <option value="CGA">CGA</option>
+    <option value="Mac256">Mac 256</option>
+  </select>
   <button id="clearBtn">Clear</button>
   <button id="demoBtn">Demo</button>
+  <button id="colorBtn">Color: ON</button>
   <button id="invertBtn">Invert</button>
   <span id="hint" style="margin-left:auto">move mouse to paint • click canvas = back to menu • keys 1-D switch</span>
 </div>
@@ -69,7 +76,23 @@
    Faithful to description: B&W, pattern follows cursor, animates with time.
 */
 const canvas=document.getElementById('c'), ctx=canvas.getContext('2d');
-let W=0,H=0,DPR=1, inverted=false;
+let W=0,H=0,DPR=1, inverted=false, colorMode=true, palName='Neon';
+// pre-2000 palettes: chunky EGA/C64-era colors, no gradients
+const PALS={
+ Neon:['#ff0080','#ff8000','#ffff00','#00ff00','#00ffff','#0080ff','#ff00ff','#ffffff'],
+ C64:['#000000','#ffffff','#883932','#67b6bd','#8b3f96','#55a049','#bfce72','#bf9a72','#40318d','#2b515f','#e043b6','#434343','#9c9c9c','#a8e10c','#7b72b6','#505050'],
+ CGA:['#000000','#00aaaa','#aa00aa','#aaaaaa','#555555','#00ffff','#ff00ff','#ffffff'],
+ Mac256:['#ff0000','#ff9900','#ffff00','#33cc00','#00cccc','#0033ff','#9900cc','#ff0099'],
+};
+function penColor(age,i,tt){
+  const p=PALS[palName]||PALS.Neon;
+  return p[((age>>1)+i+(tt>>2))%p.length];
+}
+function bgColor(){ return colorMode ? (inverted?'#fff':'#000') : (inverted?'#000':'#fff'); }
+function fgColor(age,i,tt){
+  if(!colorMode) return inverted?'#fff':'#000';
+  return penColor(age,i,tt);
+}
 function resize(){DPR=Math.min(2,window.devicePixelRatio||1);
   const r=document.getElementById('wrap').getBoundingClientRect();
   W=Math.floor(r.width);H=Math.floor(r.height);
@@ -102,16 +125,17 @@ canvas.addEventListener('touchmove',e=>{e.preventDefault();const r=canvas.getBou
 canvas.addEventListener('click',()=>{ // original: click exits animation -> show menu
   const d=document.getElementById('dropdown');d.style.display=d.style.display==='block'?'none':'block';
 });
-function clear(){ctx.fillStyle=inverted?'#000':'#fff';ctx.fillRect(0,0,W,H);trail=[];}
+function clear(){ctx.fillStyle=bgColor();ctx.fillRect(0,0,W,H);trail=[];}
 
 function drawStamp(x,y,age,idx,tt){
   const grow=age*2.2;
   const pulse=Math.sin(tt*0.12+age*0.25)*4;
   const R=6+grow+pulse;
   if(R>160)return;
-  ctx.lineWidth=1.5;
-  ctx.strokeStyle=inverted?'#fff':'#000';
-  ctx.fillStyle=inverted?'#fff':'#000';
+  ctx.lineWidth=colorMode?2:1.5;
+  const col=fgColor(age,idx,tt);
+  ctx.strokeStyle=col;
+  ctx.fillStyle=col;
   const a=age*0.08+tt*0.02;
   switch(idx){
     case 0: for(let r=4;r<R;r+=7+Math.sin(tt*0.05)*2) {ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();} break;
@@ -146,17 +170,19 @@ function drawStamp(x,y,age,idx,tt){
 
 function frame(){
   t++;
-  // 1-bit flicker clear each frame, redraw trail (animated)
-  ctx.fillStyle=inverted?'#000':'#fff';ctx.fillRect(0,0,W,H);
+  // flicker clear each frame, redraw trail (animated)
+  ctx.fillStyle=bgColor();ctx.fillRect(0,0,W,H);
   if(demo||trail.length===0){
     demoAngle+=0.03;
     const cx=W/2+Math.cos(demoAngle)*W*0.3, cy=H/2+Math.sin(demoAngle*1.3)*H*0.3;
     if((t%3)===0){trail.push({x:cx,y:cy,age:0});if(trail.length>90)trail.shift();}
   }
   for(let i=0;i<trail.length;i++){const p=trail[i];p.age+=1;drawStamp(p.x,p.y,p.age,cur,t+i*0.4);}
-  // cursor cross
-  ctx.strokeStyle=inverted?'#fff':'#000';
-  ctx.strokeRect(mx-6,my-6,12,12);
+  // cursor cross (pre-2000 magenta/green crosshair on dark, or black on light)
+  ctx.strokeStyle=colorMode?('#ff00ff'):(inverted?'#fff':'#000');
+  ctx.lineWidth=1.2;
+  ctx.strokeRect(mx-8,my-8,16,16);
+  ctx.beginPath();ctx.moveTo(mx-10,my);ctx.lineTo(mx+10,my);ctx.moveTo(mx,my-10);ctx.lineTo(mx,my+10);ctx.stroke();
   ctx.beginPath();ctx.moveTo(mx-10,my);ctx.lineTo(mx+10,my);ctx.moveTo(mx,my-10);ctx.lineTo(mx,my+10);ctx.stroke();
   requestAnimationFrame(frame);
 }
@@ -178,6 +204,8 @@ document.getElementById('closeModal').onclick=document.getElementById('okBtn').o
 document.getElementById('clearBtn').onclick=clear;
 document.getElementById('demoBtn').onclick=()=>{demo=true;trail=[];};
 document.getElementById('invertBtn').onclick=()=>{inverted=!inverted;};
+document.getElementById('colorBtn').onclick=()=>{colorMode=!colorMode;document.getElementById('colorBtn').textContent=colorMode?'Color: ON':'Color: B&W';};
+$('pal').addEventListener('change',()=>{palName=$('pal').value;});
 window.addEventListener('keydown',e=>{
   const k=e.key.toUpperCase();
   const map='123456789ABCD';let idx=map.indexOf(k);
