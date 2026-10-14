@@ -90,8 +90,9 @@ function penColor(age,i,tt){
 }
 function bgColor(){ return colorMode ? (inverted?'#fff':'#000') : (inverted?'#000':'#fff'); }
 function fgColor(age,i,tt){
-  if(!colorMode) return inverted?'#fff':'#000';
-  return penColor(age,i,tt);
+  if(!colorMode) return inverted ? '#fff' : '#000';
+  const p=PALS[palName]||PALS.Neon;
+  return p[((age>>1)+i+(tt>>2))%p.length];
 }
 function resize(){DPR=Math.min(2,window.devicePixelRatio||1);
   const r=document.getElementById('wrap').getBoundingClientRect();
@@ -196,7 +197,7 @@ const sel=document.getElementById('sel'), dd=document.getElementById('dropdown')
 PATTERNS.forEach((p,i)=>{const o=document.createElement('option');o.value=i;o.textContent=p.n;sel.appendChild(o);
   const d=document.createElement('div');d.innerHTML=p.n+' <span class="key">'+'123456789ABCD'[i]+'</span>';
   d.onclick=()=>{cur=i;sel.value=i;dd.style.display='none';demo=false;};dd.appendChild(d);});
-sel.onchange=()=>{cur=+sel.value;demo=false;};
+sel.onchange=()=>{cur=+sel.value;demo=false;clear();trail=[];frame();};
 document.getElementById('patBtn').onclick=e=>{e.stopPropagation();dd.style.display=dd.style.display==='block'?'none':'block';};
 document.getElementById('fileBtn').onclick=()=>{clear();dd.style.display='none';};
 document.getElementById('aboutBtn').onclick=()=>document.getElementById('modal').classList.remove('hidden');
@@ -204,8 +205,8 @@ document.getElementById('closeModal').onclick=document.getElementById('okBtn').o
 document.getElementById('clearBtn').onclick=clear;
 document.getElementById('demoBtn').onclick=()=>{demo=true;trail=[];};
 document.getElementById('invertBtn').onclick=()=>{inverted=!inverted;};
-document.getElementById('colorBtn').onclick=()=>{colorMode=!colorMode;document.getElementById('colorBtn').textContent=colorMode?'Color: ON':'Color: B&W';};
-$('pal').addEventListener('change',()=>{palName=$('pal').value;});
+document.getElementById('colorBtn').onclick=()=>{colorMode=!colorMode;document.getElementById('colorBtn').textContent=colorMode?'Color: ON':'Color: B&W'; if(colorMode)clear();else{ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);}};
+$('pal').addEventListener('change',()=>{palName=$('pal').value; (inverted&&!colorMode)?clear():drawStamp(0,0,0,0,0);}); // refresh palette
 window.addEventListener('keydown',e=>{
   const k=e.key.toUpperCase();
   const map='123456789ABCD';let idx=map.indexOf(k);

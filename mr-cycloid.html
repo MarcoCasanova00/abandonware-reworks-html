@@ -155,19 +155,14 @@ function start(){
   const ext=extent(R,r,d,hypo);
   const scale=Math.min(W,H)/2*0.88/ext*s;
   const cx=W/2, cy=H/2;
-  // rainbow pre-2000 curve (sharp EGA-style palette steps, not smooth gradients)
-  const rainbow=['#0a0','#008','#06f','#55f','#f08','#fa0','#ff8','#ffa','#f22','#c00','#609','#380'];
-  for(let i=0;i<12;i++){
-    const angle=Math.PI*2*i/12+tt*0.01;
-    const q=Math.sin(angle+tt*0.02)*0.5+0.5;
-    const idx=Math.floor(q*rainbow.length)%rainbow.length;
-    ctx.strokeStyle=rainbow[idx];
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    const n=Math.round(Math.min(400,800*Math.abs(rev)));
-    for(let k=0;k<=n;k++){const t=k/n*Math.PI*2*Math.abs(rev);const p=point(R,r,d,hypo,t);const X=cx+p[0]*scale,Y=cy+p[1]*scale;if(k===0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
-    ctx.stroke();
-  }
+  // charcoal B&W preview
+  ctx.strokeStyle='#333';
+  ctx.fillStyle='#000';
+  ctx.lineWidth=2.2;
+  ctx.beginPath();
+  const n=Math.round(Math.min(300,600*Math.abs(rev)));
+  for(let k=0;k<=n;k++){const t=k/n*Math.PI*2*Math.abs(rev);const p=point(R,r,d,hypo,t);const X=cx+p[0]*scale,Y=cy+p[1]*scale;if(k===0)ctx.moveTo(X,Y);else ctx.lineTo(X,Y);}
+  ctx.stroke();
   if($('showGears'))drawGearCircles(cx,cy,scale,R,r);
   let px=null,py=null;
   const speed=+$('sp').value; // steps per frame
@@ -176,6 +171,8 @@ function start(){
     const dt=(0.002+speed*0.0009)*(Math.max(1,rev)/Math.max(1,rev)); // constant visual speed
     const n=Math.max(2,Math.floor(speed*1.5));
     ctx.beginPath();
+    ctx.strokeStyle='#222';
+    ctx.lineWidth=2;
     for(let i=0;i<n && tCur<=tMax;i++){
       const p=point(R,r,d,hypo,tCur);
       const X=cx+p[0]*scale, Y=cy+p[1]*scale;
@@ -184,14 +181,14 @@ function start(){
     }
     ctx.stroke();
     $('status').textContent=`Drawing… ${(100*tCur/tMax).toFixed(1)}% — R=${R} r=${r} d=${d}`;
-    if(tCur>=tMax){drawing=false;$('status').textContent=`Done — ${lobes(R,r)} lobes closed in ${rev} turn(s).`;return;}
+    if(tCur>=tMax){drawing=false;$('status').textContent=`Done — ${lobes(R,r)} lobes`;return;}
     anim=requestAnimationFrame(step);
   }
   updateMath();anim=requestAnimationFrame(step);
 }
 function stop(){drawing=false;if(anim)cancelAnimationFrame(anim);anim=null;updateMath();}
 
-['R','r','d','s','sp'].forEach(id=>$(id).addEventListener('input',()=>{if(!drawing)redrawStatic();else updateMath();}));
+['R','r','d','s','sp'].forEach(id=>$(id).addEventListener('input',()=>{if(!drawing){redrawStatic();start();}else updateMath();}));
 $('hypoBtn').onclick=()=>{$('hypoBtn').classList.add('primary');$('epiBtn').classList.remove('primary');updateMath();};
 $('epiBtn').onclick=()=>{$('epiBtn').classList.add('primary');$('hypoBtn').classList.remove('primary');updateMath();};
 $('drawBtn').onclick=start;$('stopBtn').onclick=stop;
