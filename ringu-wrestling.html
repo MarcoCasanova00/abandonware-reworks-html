@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ringu no Ue wa Osawagi / リングの上は大さわぎ — FM-7 Wrestling Homage</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#111;color:#fff;font-family:monospace;height:100%}
+#wrap{max-width:640px;margin:0 auto;padding:8px}
+#bar{background:#c00;padding:6px 10px;font-size:13px;font-weight:bold;display:flex;justify-content:space-between;border:2px solid #fff}
+canvas{width:100%;background:#1a6c1a;border:2px solid #fff;display:block;image-rendering:pixelated}
+#panel{background:#000;border:2px solid #fff;border-top:none;padding:8px;font-size:12.5px;line-height:1.55}
+button{background:#fff;border:none;font-family:inherit;font-weight:bold;padding:6px 10px;cursor:pointer;margin:2px}
+.hp{height:10px;background:#444;margin:2px 0} .hp>i{display:block;height:100%;background:#0f0}
+#flash{text-align:center;font-size:20px;font-weight:bold;min-height:30px;color:#ff0}
+small{color:#ccc}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div id="bar"><span>リングの上は大さわぎ • RING UPROAR [FUJE-13001]</span><span id="timer">180</span></div>
+<canvas id="c" width="480" height="380"></canvas>
+<div id="flash"></div>
+<div id="panel">
+<div style="display:flex;gap:10px">
+<div style="flex:1">YOU (青 BLUE)<div class="hp"><i id="hp1" style="width:100%"></i></div>STAMINA <span id="st1">100</span></div>
+<div style="flex:1">CPU (赤 RED)<div class="hp"><i id="hp2" style="width:100%"></i></div>STAMINA <span id="st2">100</span></div>
+</div>
+<div style="margin:6px 0">
+<button id="start">▶ FIGHT (Enter)</button>
+<button id="how">📖 HOW TO PLAY / 遊び方</button>
+</div>
+<div id="help" style="display:none;background:#222;padding:6px;border:1px dashed #fff">
+<b>遊び方 — How to play (translated from Oh!FM 1984):</b><br>
+• Move with <b>Arrows / Numpad 7-9-1-3</b> (テンキー).<br>
+• Touch foe → grapple (組み合い). Then <b>mash BREAK key</b> — here <b>SPACE / B / tap button</b> — as many times as you can in 2 sec! (連打！)<br>
+• More mashes = stronger move. Press <b>0 / Enter to execute</b> (０キーで技をかける).<br>
+• <b>0</b> near downed foe = pin (フォール) / tag (タッチ). Pin to 3-count to win.<br>
+• Moves cost stamina (スタミナ). Rest by keeping distance.<br>
+<small>Original: BREAK key = ESC on emulator. Moves flash on screen. Damage scales with mash count.</small>
+</div>
+<div>
+<button id="mash">👊 MASH BREAK (Space)</button>
+<button id="exec">💥 EXECUTE 0 (Enter)</button>
+</div>
+<div><small id="log">Ready. Press FIGHT.</small></div>
+</div>
+</div>
+<script>
+// Ringu no Ue wa Osawagi homage — simplified tag pro-wrestling
+const cv=document.getElementById('c'),x=cv.getContext('2d');
+const W=480,H=380;
+let p1,p2,state='idle',grapple=null,mash=0,mashT=0,timer=180,last=0,pin=null,pinT=0;
+const MOVES=[
+ {min:0, en:'Body Blow', jp:'ボディブロー', dmg:6},
+ {min:6, en:'Dropkick', jp:'ドロップキック', dmg:10},
+ {min:12,en:'Body Slam', jp:'ボディスラム', dmg:16},
+ {min:20,en:'Suplex', jp:'スープレックス', dmg:24},
+ {min:30,en:'Back Drop', jp:'バックドロップ', dmg:34},
+ {min:42,en:'Giant Swing', jp:'ジャイアントスイング', dmg:48},
+];
+function reset(){p1={x:160,y:200,hp:100,st:100,down:0,face:1};p2={x:320,y:200,hp:100,st:100,down:0,face:-1};timer=180;state='fight';grapple=null;pin=null;log('FIGHT! ファイト! Touch foe to grapple.');}
+function log(s){document.getElementById('log').textContent=s;}
+function flash(s){document.getElementById('flash').textContent=s;}
+function moveFor(m){let r=MOVES[0];for(const q of MOVES)if(m>=q.min)r=q;return r;}
+let keys={};
+addEventListener('keydown',e=>{
+ keys[e.key.toLowerCase()]=1;
+ if(e.key===' '||e.key.toLowerCase()==='b'){doMash();e.preventDefault();}
+ if(e.key==='Enter'||e.key==='0'){doExec();}
+ if(e.key==='Escape'){doMash();}
+ if(e.key==='Enter'&&state!=='fight')reset();
+});
+addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+document.getElementById('mash').onclick=doMash;
+document.getElementById('exec').onclick=doExec;
+document.getElementById('start').onclick=reset;
+document.getElementById('how').onclick=()=>{const h=document.getElementById('help');h.style.display=h.style.display==='none'?'block':'none';};
+function doMash(){if(state!=='fight')return;if(grapple){mash++;grapple.mash=mash;
+ const mv=moveFor(mash);flash(`${mv.jp} — ${mv.en} ? (${mash}連打)`);blip(300+mash*15);}}
+function doExec(){
+ if(state!=='fight')return;
+ // pin attempt?
+ if(p2.down>0&&Math.hypot(p1.x-p2.x,p1.y-p2.y)<40){startPin();return;}
+ if(p1.down>0&&Math.hypot(p1.x-p2.x,p1.y-p2.y)<40){startPin();return;}
+ if(grapple){const mv=moveFor(mash);
+  const atk=grapple.turn==='p1'?p1:p2, def=atk===p1?p2:p1;
+  if(atk.st<8){log('No stamina! スタミナ不足');return;}
+  atk.st=Math.max(0,atk.st-8-mv.dmg*0.2);
+  def.hp=Math.max(0,def.hp-mv.dmg);def.down=2.2;
+  flash(`💥 ${mv.jp} ${mv.en}! ${mv.dmg} dmg`);
+  log(`${atk===p1?'YOU':'CPU'} hits ${mv.en} / ${mv.jp} — ${mv.dmg} damage!`);
+  blip(150);grapple=null;mash=0;
+  if(def.hp<=0){finishPin(atk);return;}
+ }
+}
+function startPin(){pin={t:0,by:p1.down>0?p2:p1};pinT=0;flash('フォール! PIN! — counting…');log('Pin! 3-count… mash SPACE to kick out (defender)!');}
+function finishPin(w){state='over';flash(w===p1?'🏆 YOU WIN! 優勝!':'💀 CPU WINS… CPUの勝ち');log(w===p1?'Pinfall! You take the match!':'You were pinned.');}
+function blip(f){try{const a=blip.a||(blip.a=new (window.AudioContext||window.webkitAudioContext)());const o=a.createOscillator(),g=a.createGain();o.frequency.value=f;o.connect(g);g.connect(a.destination);g.gain.value=.05;o.start();o.stop(a.currentTime+.07);}catch(e){}}
+function loop(t){
+ requestAnimationFrame(loop);
+ let dt=Math.min(.05,(t-last)/1000||0);last=t;
+ if(state!=='fight'){draw();return;}
+ timer-=dt;if(timer<=0){timer=0;state='over';flash(p1.hp>p2.hp?'⏱ TIME UP — YOU WIN!':'⏱ TIME UP — CPU WINS');}
+ // movement p1
+ const sp=130*dt;
+ if(p1.down>0)p1.down-=dt;
+ else{
+  if(keys['arrowleft']||keys['4'])p1.x-=sp;
+  if(keys['arrowright']||keys['6'])p1.x+=sp;
+  if(keys['arrowup']||keys['8'])p1.y-=sp;
+  if(keys['arrowdown']||keys['2'])p1.y+=sp;
+  p1.x=Math.max(70,Math.min(410,p1.x));p1.y=Math.max(90,Math.min(320,p1.y));
+  p1.st=Math.min(100,p1.st+4*dt);
+ }
+ // cpu AI
+ if(p2.down>0)p2.down-=dt;
+ else{
+  const dx=p1.x-p2.x,dy=p1.y-p2.y,d=Math.hypot(dx,dy)||1;
+  const aggro=p2.hp<p1.hp?1.2:1;
+  p2.x+=dx/d*95*aggro*dt;p2.y+=dy/d*95*aggro*dt;
+  p2.x=Math.max(70,Math.min(410,p2.x));p2.y=Math.max(90,Math.min(320,p2.y));
+  p2.st=Math.min(100,p2.st+4*dt);
+  // cpu auto-mash & exec
+  if(grapple&&grapple.turn==='p2'&&Math.random()<dt*20){mash++;grapple.mash=mash;}
+  if(grapple&&grapple.turn==='p2'&&mashT<0){doCpuExec();}
+ }
+ // grapple trigger
+ if(!grapple&&p1.down<=0&&p2.down<=0&&Math.hypot(p1.x-p2.x,p1.y-p2.y)<28){
+  grapple={turn:Math.random()<0.5?'p1':'p2',mash:0};mash=0;mashT=2.0;
+  flash('組み合い! GRAPPLE — 連打 BREAK!');log('Grapple! Mash SPACE/BREAK, then 0/Enter!');
+  blip(500);
+ }
+ if(grapple){mashT-=dt;
+  if(mashT<=0){ // auto exec whoever's turn
+   if(grapple.turn==='p1')doExec();else doCpuExec();
+  }}
+ // pin counting
+ if(pin){pinT+=dt;
+  // defender can kick out by mashing (simulate CPU kickout / player kickout via mash key)
+  if(pinT>0.6&&pinT<3.2)flash(`フォール ${Math.floor(pinT)+1}… COUNT ${Math.floor(pinT)+1}!`);
+  if(pinT>=3){finishPin(pin.by);}
+ }
+ document.getElementById('timer').textContent=Math.ceil(timer)+'s';
+ document.getElementById('hp1').style.width=p1.hp+'%';
+ document.getElementById('hp2').style.width=p2.hp+'%';
+ document.getElementById('st1').textContent=Math.round(p1.st);
+ document.getElementById('st2').textContent=Math.round(p2.st);
+ draw();
+}
+function doCpuExec(){
+ if(!grapple)return;
+ const mv=moveFor(mash||8);
+ p2.st=Math.max(0,p2.st-8);p1.hp=Math.max(0,p1.hp-mv.dmg);p1.down=2.2;
+ flash(`💥 CPU: ${mv.jp} ${mv.en}!`);log(`CPU hits ${mv.en} — ${mv.dmg} dmg`);
+ grapple=null;mash=0;mashT=0;
+ if(p1.hp<=0){state='over';flash('💀 CPU WINS…');}
+}
+function wrestler(px,py,col,down,face){
+ x.save();x.translate(px,py);
+ if(down>0){x.rotate(Math.PI/2);x.globalAlpha=.8;}
+ x.fillStyle='#000';x.fillRect(-16,-26,32,40);
+ x.fillStyle=col;x.fillRect(-14,-24,28,36);
+ x.fillStyle='#fc9';x.fillRect(-10,-38,20,14); // head
+ x.fillStyle='#000';x.fillRect(-6,-34,4,4);x.fillRect(2,-34,4,4);
+ // arms
+ x.fillStyle=col;x.fillRect(-22,-20+Math.sin(last/200)*3,8,20);x.fillRect(14,-20-Math.sin(last/200)*3,8,20);
+ x.restore();
+}
+function draw(){
+ // arena
+ x.fillStyle='#1a6c1a';x.fillRect(0,0,W,H);
+ x.fillStyle='#2a8c2a';x.fillRect(50,70,380,260);
+ x.strokeStyle='#fff';x.lineWidth=4;x.strokeRect(50,70,380,260);
+ x.strokeStyle='#c00';x.lineWidth=2;x.strokeRect(60,80,360,240);
+ // ropes/posts
+ x.fillStyle='#fff';[[50,70],[430,70],[50,330],[430,330]].forEach(p=>{x.fillRect(p[0]-5,p[1]-5,10,10);});
+ x.fillStyle='rgba(0,0,0,.25)';x.font='bold 28px monospace';x.textAlign='center';
+ x.fillText('リング',W/2,H/2+10);
+ if(state==='idle'){x.fillStyle='#fff';x.font='bold 20px monospace';x.fillText('PRESS FIGHT',W/2,200);return;}
+ wrestler(p1.x,p1.y,'#2255ff',p1.down>0,1);
+ wrestler(p2.x,p2.y,'#dd2222',p2.down>0,-1);
+ // grapple link
+ if(grapple){x.strokeStyle='#ff0';x.lineWidth=3;x.beginPath();x.moveTo(p1.x,p1.y-10);x.lineTo(p2.x,p2.y-10);x.stroke();
+  x.fillStyle='#000';x.fillRect(W/2-80,40,160,18);x.fillStyle='#ff0';x.fillRect(W/2-80,40,160*Math.max(0,mashT/2),18);}
+}
+reset();state='idle';requestAnimationFrame(loop);
+</script>
+</body>
+</html>

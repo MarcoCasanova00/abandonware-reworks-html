@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FM Racer / FMレーサー — FM-7 Homage</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#111;color:#fff;font-family:monospace}
+#wrap{max-width:560px;margin:0 auto;padding:8px}
+#bar{background:#000;border:2px solid #0f0;padding:6px 10px;font-size:13px;display:flex;justify-content:space-between}
+canvas{width:100%;background:#222;border:2px solid #0f0;display:block;image-rendering:pixelated}
+#panel{background:#000;border:2px solid #0f0;border-top:none;padding:8px;font-size:13px;line-height:1.5}
+button{background:#0f0;border:none;font-family:inherit;font-weight:bold;padding:6px 12px;cursor:pointer;margin:2px}
+small{color:#8f8}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div id="bar"><span>FM RACER • FMレーサー [CC-1132] Compac</span><span id="hud">0m</span></div>
+<canvas id="c" width="400" height="520"></canvas>
+<div id="panel">
+<div>DIST: <span id="dist">0</span>/8700m &nbsp; TIME: <span id="time">120</span>s &nbsp; CARS LEFT: <span id="lives">3</span> &nbsp; RACE: <span id="race">1</span></div>
+<div style="margin:6px 0">
+<button id="start">▶ START (Enter)</button>
+<button id="mute">🔊</button>
+</div>
+<div>Controls — <b>1 / ←</b> left, <b>3 / →</b> right, <b>5 / ↑</b> accelerate, <b>2 / ↓</b> brake.<br>
+Original FM-7: 1=left, 3=right, 5=accel, 2=decel. Arrows/WASD also work here.<br>
+<small>Goal: survive 8700m before time runs out. Crash = lose a car. Reach goal → Race 2 (faster). Best-5 saved locally.</small></div>
+<div id="best"></div>
+</div>
+</div>
+<script>
+// FM Racer homage — vertical scroller, 8700m, FM-7 8-colour spirit
+const cv=document.getElementById('c'),x=cv.getContext('2d');
+const W=400,H=520;
+let px=200,speed=0,dist=0,timeL=120,lives=3,race=1,run=false,over=false,win=false,last=0,traffic=[],shake=0,muted=false;
+let best=JSON.parse(localStorage.getItem('fmracer_best')||'[]');
+function reset(r){px=200;speed=60;dist=0;timeL=120;lives=3;traffic=[];over=false;win=false;run=true;race=r||1;last=performance.now();}
+function beep(f){if(muted)return;try{const a=beep.a||(beep.a=new (window.AudioContext||window.webkitAudioContext)());const o=a.createOscillator(),g=a.createGain();o.frequency.value=f;o.connect(g);g.connect(a.destination);g.gain.value=.06;o.start();o.stop(a.currentTime+.08);}catch(e){}}
+function spawn(){const laneW=170,lx=W/2-laneW/2;traffic.push({x:lx+20+Math.random()*(laneW-60),y:-40,v:40+Math.random()*60+race*15,c:['#f00','#ff0','#0ff','#f0f'][Math.random()*4|0]});}
+function loop(t){
+ requestAnimationFrame(loop);
+ if(!run)return;
+ let dt=Math.min(.05,(t-last)/1000);last=t;
+ // input
+ if(keys.left)px-= (160+speed)*dt;
+ if(keys.right)px+=(160+speed)*dt;
+ if(keys.up)speed=Math.min(260-race*10,speed+120*dt);
+ if(keys.down)speed=Math.max(40,speed-180*dt);
+ else speed+=(80-speed)*.3*dt;
+ px=Math.max(W/2-95,Math.min(W/2+95,px));
+ const kmh=speed;
+ dist+=kmh*dt*2.2; // metres
+ timeL-=dt;
+ if(Math.random()<dt*(1+race*.4+speed/140))spawn();
+ // update traffic
+ for(const c of traffic)c.y+=(speed-c.v)*dt*1.6;
+ traffic=traffic.filter(c=>c.y<H+60);
+ // collisions
+ for(const c of traffic){
+  if(!c.hit&&Math.abs(c.x-px)<26&&Math.abs(c.y-(H-90))<34){
+   c.hit=true;lives--;shake=12;beep(110);
+   if(lives<=0){over=true;run=false;}
+  }
+ }
+ if(dist>=8700){win=true;run=false;
+  best.push({race,time:Math.ceil(timeL)});best.sort((a,b)=>b.time-a.time);best=best.slice(0,5);
+  localStorage.setItem('fmracer_best',JSON.stringify(best));
+ }
+ if(timeL<=0){timeL=0;over=true;run=false;}
+ draw(t);
+}
+function draw(t){
+ x.save();
+ if(shake>0){x.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=.9;}
+ // grass
+ x.fillStyle='#0a4d0a';x.fillRect(0,0,W,H);
+ // road
+ const lx=W/2-100;
+ x.fillStyle='#333';x.fillRect(lx,0,200,H);
+ x.fillStyle='#555';x.fillRect(lx,0,8,H);x.fillRect(lx+192,0,8,H);
+ // centre dashes scroll with speed
+ x.fillStyle='#ff0';
+ let off=(t/16*speed/60)%40;
+ for(let y=-40+off;y<H;y+=40)x.fillRect(W/2-3,y,6,20);
+ // traffic
+ for(const c of traffic){
+  x.fillStyle='#000';x.fillRect(c.x-16,c.y-22,32,44);
+  x.fillStyle=c.c;x.fillRect(c.x-14,c.y-20,28,40);
+  x.fillStyle='#9df';x.fillRect(c.x-12,c.y-20,24,10);
+ }
+ // player
+ const py=H-90;
+ x.fillStyle='#000';x.fillRect(px-17,py-23,34,46);
+ x.fillStyle='#0af';x.fillRect(px-15,py-21,30,42);
+ x.fillStyle='#fff';x.fillRect(px-13,py-21,26,10);
+ x.fillStyle='#000';x.fillRect(px-13,py+8,26,4);
+ x.fillRect(px-15,py-26,8,6);x.fillRect(px+7,py-26,8,6);
+ x.restore();
+ // HUD
+ document.getElementById('dist').textContent=Math.floor(dist);
+ document.getElementById('time').textContent=Math.ceil(timeL);
+ document.getElementById('lives').textContent=lives;
+ document.getElementById('race').textContent=race;
+ document.getElementById('hud').textContent=Math.floor(dist)+'m / '+Math.round(speed*1.4)+'km/h';
+ // speed bar
+ x.fillStyle='#000';x.fillRect(8,8,100,10);x.fillStyle='#0f0';x.fillRect(8,8,100*speed/260,10);
+ if(over&&!win){x.fillStyle='rgba(0,0,0,.7)';x.fillRect(0,H/2-50,W,100);
+  x.fillStyle='#f00';x.font='bold 26px monospace';x.textAlign='center';x.fillText('GAME OVER',W/2,H/2);
+  x.fillStyle='#fff';x.font='13px monospace';x.fillText('press Enter — RACE '+race,x,W/2,H/2+24);
+  if(dist>=8700){}}
+ if(win){x.fillStyle='rgba(0,0,0,.7)';x.fillRect(0,H/2-60,W,120);
+  x.fillStyle='#0f0';x.font='bold 24px monospace';x.textAlign='center';x.fillText('GOAL! 8700m CLEAR!',W/2,H/2-10);
+  x.fillStyle='#fff';x.font='13px monospace';x.fillText('press Enter for RACE '+(race+1),W/2,H/2+16);
+  x.fillText('TIME LEFT: '+Math.ceil(timeL)+'s',W/2,H/2+36);
+ }
+ renderBest();
+}
+function renderBest(){
+ const el=document.getElementById('best');
+ el.innerHTML='<b>BEST 5 (Race 2+):</b> '+(best.length?best.map((b,i)=>`#${i+1} R${b.race} +${b.time}s`).join(' • '):'— finish Race 1 to enter —');
+}
+let keys={left:0,right:0,up:0,down:0};
+addEventListener('keydown',e=>{
+ const k=e.key.toLowerCase();
+ if(k==='1'||k==='arrowleft'||k==='a')keys.left=1;
+ if(k==='3'||k==='arrowright'||k==='d')keys.right=1;
+ if(k==='5'||k==='arrowup'||k==='w')keys.up=1;
+ if(k==='2'||k==='arrowdown'||k==='s')keys.down=1;
+ if(k==='enter'||k===' '){if(!run){if(win){reset(race+1);}else reset(1);}e.preventDefault();}
+ if(k==='m')muted=!muted;
+});
+addEventListener('keyup',e=>{
+ const k=e.key.toLowerCase();
+ if(k==='1'||k==='arrowleft'||k==='a')keys.left=0;
+ if(k==='3'||k==='arrowright'||k==='d')keys.right=0;
+ if(k==='5'||k==='arrowup'||k==='w')keys.up=0;
+ if(k==='2'||k==='arrowdown'||k==='s')keys.down=0;
+});
+document.getElementById('start').onclick=()=>{if(win)reset(race+1);else reset(1);};
+document.getElementById('mute').onclick=e=>{muted=!muted;e.target.textContent=muted?'🔇':'🔊';};
+renderBest();draw(0);requestAnimationFrame(t=>{last=t;loop(t);});
+</script>
+</body>
+</html>

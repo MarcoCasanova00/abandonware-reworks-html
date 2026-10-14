@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mr. Cycloid (1986) — Standalone Spirograph Homage</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#333;font-family:Geneva,Chicago,Verdana,sans-serif}
+#bar{height:30px;background:#fff;border-bottom:2px solid #000;display:flex;align-items:center;font-weight:bold;font-size:14px;padding:0 12px;gap:14px}
+#main{display:flex;height:calc(100% - 30px);flex-direction:row}
+#panel{width:300px;background:#eee;border-right:2px solid #000;padding:12px;overflow-y:auto;font-size:13px}
+#panel h2{font-size:14px;margin:6px 0;border-bottom:2px solid #000;padding-bottom:4px}
+#panel label{display:block;margin:8px 0 2px}
+#panel input[type=range]{width:100%}
+#panel input[type=number]{width:70px;border:2px solid #000;font-family:inherit}
+#stage{flex:1;position:relative;background:#555;display:flex;align-items:center;justify-content:center;padding:14px}
+#macwin{background:#fff;border:3px solid #000;box-shadow:8px 8px 0 rgba(0,0,0,.5);width:100%;max-width:900px;height:100%;display:flex;flex-direction:column}
+#macwin .title{background:#000;color:#fff;padding:5px 10px;font-size:13px;font-weight:bold;display:flex;justify-content:space-between}
+canvas{flex:1;background:#fff;width:100%;cursor:crosshair;image-rendering:pixelated}
+.row{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap}
+button{border:2px solid #000;background:#fff;box-shadow:2px 2px 0 #000;padding:5px 10px;font-family:inherit;font-weight:bold;cursor:pointer;font-size:12px}
+button:active{transform:translate(1px,1px);box-shadow:1px 1px 0 #000}
+button.primary{background:#000;color:#fff}
+.val{float:right;font-weight:bold}
+.preset{font-size:11px;padding:3px 7px}
+#info{background:#fff;border-top:2px solid #000;padding:4px 10px;font-size:12px}
+@media(max-width:800px){#main{flex-direction:column}#panel{width:100%;max-height:42%;border-right:none;border-bottom:2px solid #000}}
+</style>
+</head>
+<body>
+<div id="bar"><span></span><span>File</span><span>Edit</span><span><u>Mr. Cycloid</u></span><span style="margin-left:auto;font-weight:normal">Spirograph for B&W Macs • 1986 homage</span></div>
+<div id="main">
+<div id="panel">
+<h2>⚙ Gears</h2>
+<label>Mode <span class="val" id="modeVal"></span></label>
+<div class="row">
+<button id="hypoBtn" class="primary">Inside (hypo)</button>
+<button id="epiBtn">Outside (epi)</button>
+</div>
+<label>Fixed gear R <span class="val" id="Rv">105</span></label>
+<input type="range" id="R" min="10" max="256" value="105">
+<label>Moving gear r <span class="val" id="rv">45</span></label>
+<input type="range" id="r" min="5" max="200" value="45">
+<label>Pen distance d <span class="val" id="dv">60</span></label>
+<input type="range" id="d" min="0" max="250" value="60">
+<h2>✎ Draw</h2>
+<label>Scale <span class="val" id="sv">1.0</span></label>
+<input type="range" id="s" min="20" max="200" value="100">
+<label>Speed <span class="val" id="spv">fast</span></label>
+<input type="range" id="sp" min="1" max="100" value="60">
+<label><input type="checkbox" id="bw" checked> Crisp 1-bit (B&W Mac)</label>
+<label><input type="checkbox" id="showGears"> Show gears</label>
+<div class="row">
+<button id="drawBtn" class="primary">Draw</button>
+<button id="stopBtn">Stop</button>
+<button id="clearBtn">Clear</button>
+<button id="randBtn">🎲 Random</button>
+</div>
+<div class="row">
+<button id="saveBtn">💾 Save PNG</button>
+<button id="aboutBtn">About</button>
+</div>
+<h2>★ Presets</h2>
+<div class="row" id="presets"></div>
+<div id="math" style="margin-top:8px;font-size:11px;line-height:1.5;background:#fff;border:2px solid #000;padding:6px"></div>
+</div>
+<div id="stage">
+<div id="macwin">
+<div class="title"><span id="wtitle">Untitled – Mr. Cycloid</span><span>▣ ▢ ■</span></div>
+<canvas id="c"></canvas>
+<div id="info"><span id="status">Ready. Press Draw.</span></div>
+</div>
+</div>
+</div>
+<script>
+// Mr. Cycloid homage - hypotrochoid / epitrochoid spirograph
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+let W=0,H=0, anim=null, tCur=0, tMax=0, drawing=false;
+
+function resize(){
+  const r=cv.getBoundingClientRect();
+  const dpr=Math.min(2,devicePixelRatio||1);
+  W=Math.max(300,r.width); H=Math.max(300,r.height||500);
+  // if height 0 (flex), use parent
+  if(r.height<10){H=cv.parentElement.clientHeight-60;W=cv.parentElement.clientWidth-4;}
+  cv.width=W*dpr; cv.height=H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0);
+  redrawStatic();
+}
+window.addEventListener('resize',()=>{resize();});
+
+function gcd(a,b){a=Math.abs(a|0);b=Math.abs(b|0);while(b){[a,b]=[b,a%b]}return a||1}
+function lobes(R,r){return Math.abs(r)/gcd(Math.abs(R),Math.abs(r));}
+function cycles(R,r){return Math.abs(r)/gcd(Math.abs(R),Math.abs(r));} // number of revolutions factor
+
+function params(){return {R:+$('R').value, r:+$('r').value, d:+$('d').value,
+  s:+$('s').value/100, hypo:$('hypoBtn').classList.contains('primary')};}
+
+function point(R,r,d,hypo,t){
+  if(hypo){ // hypotrochoid
+    const k=(R-r)/r;
+    return [(R-r)*Math.cos(t)+d*Math.cos(k*t), (R-r)*Math.sin(t)-d*Math.sin(k*t)];
+  } else { // epitrochoid
+    const k=(R+r)/r;
+    return [(R+r)*Math.cos(t)-d*Math.cos(k*t), (R+r)*Math.sin(t)-d*Math.sin(k*t)];
+  }
+}
+function extent(R,r,d,hypo){
+  // sample to auto-fit
+  let m=0; const g=gcd(R,r), rev=r/g;
+  const steps=Math.min(4000, 800*Math.abs(rev));
+  for(let i=0;i<=steps;i++){const p=point(R,r,d,hypo,i/steps*Math.PI*2*Math.abs(rev));
+    m=Math.max(m,Math.abs(p[0]),Math.abs(p[1]));}
+  return m||1;
+}
+
+let bgSnap=null;
+function redrawStatic(){
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  bgSnap=null;
+  updateMath();
+}
+function updateMath(){
+  const {R,r,d,s,hypo}=params();
+  $('Rv').textContent=R;$('rv').textContent=r;$('dv').textContent=d;
+  $('sv').textContent=s.toFixed(2);$('spv').textContent=$('sp').value;
+  $('modeVal').textContent=hypo?'hypotrochoid (inside)':'epitrochoid (outside)';
+  const L=lobes(R,r);
+  const rev=Math.abs(r)/gcd(R,r);
+  $('math').innerHTML=(hypo?'x=(R−r)cos t + d·cos((R−r)t/r)<br>y=(R−r)sin t − d·sin((R−r)t/r)'
+    :'x=(R+r)cos t − d·cos((R+r)t/r)<br>y=(R+r)sin t − d·sin((R+r)t/r)')
+    +`<br><b>Lobes:</b> ${L} &nbsp; <b>Turns to close:</b> ${rev} &nbsp; <b>R:r</b> ${R}:${r}`;
+  $('status').textContent=drawing?`Drawing… R=${R} r=${r} d=${d} lobes=${L}`:`Ready — R=${R} r=${r} d=${d} → ${L} lobes. Press Draw.`;
+  $('wtitle').textContent=`${hypo?'Hypo':'Epi'} R${R} r${r} d${d} — Mr. Cycloid`;
+}
+
+function drawGearCircles(cx,cy,scale,R,r){
+  ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle='#999';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(cx,cy,R*scale,0,7);ctx.stroke();
+  ctx.setLineDash([]);ctx.restore();
+}
+
+function start(){
+  stop();
+  const {R,r,d,s,hypo}=params();
+  if(r===0)return;
+  const g=gcd(R,r), rev=Math.abs(r)/g; // revolutions of t/2π needed
+  tMax=Math.PI*2*rev;
+  tCur=0; drawing=true;
+  // keep existing drawing? clear first like original fresh sheet unless shift held
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='#000';ctx.fillStyle='#000';ctx.lineWidth=$('bw').checked?1.4:1.6;
+  ctx.lineCap='round';ctx.lineJoin='round';
+  const ext=extent(R,r,d,hypo);
+  const scale=Math.min(W,H)/2*0.88/ext*s;
+  const cx=W/2, cy=H/2;
+  if($('showGears'))drawGearCircles(cx,cy,scale,R,r);
+  let px=null,py=null;
+  const speed=+$('sp').value; // steps per frame
+  function step(){
+    if(!drawing)return;
+    const dt=(0.002+speed*0.0009)*(Math.max(1,rev)/Math.max(1,rev)); // constant visual speed
+    const n=Math.max(2,Math.floor(speed*1.5));
+    ctx.beginPath();
+    for(let i=0;i<n && tCur<=tMax;i++){
+      const p=point(R,r,d,hypo,tCur);
+      const X=cx+p[0]*scale, Y=cy+p[1]*scale;
+      if(px===null){ctx.moveTo(X,Y);}else{ctx.lineTo(X,Y);}
+      px=X;py=Y;tCur+=dt*2;
+    }
+    ctx.stroke();
+    $('status').textContent=`Drawing… ${(100*tCur/tMax).toFixed(1)}% — R=${R} r=${r} d=${d}`;
+    if(tCur>=tMax){drawing=false;$('status').textContent=`Done — ${lobes(R,r)} lobes closed in ${rev} turn(s).`;return;}
+    anim=requestAnimationFrame(step);
+  }
+  updateMath();anim=requestAnimationFrame(step);
+}
+function stop(){drawing=false;if(anim)cancelAnimationFrame(anim);anim=null;updateMath();}
+
+['R','r','d','s','sp'].forEach(id=>$(id).addEventListener('input',()=>{if(!drawing)redrawStatic();else updateMath();}));
+$('hypoBtn').onclick=()=>{$('hypoBtn').classList.add('primary');$('epiBtn').classList.remove('primary');updateMath();};
+$('epiBtn').onclick=()=>{$('epiBtn').classList.add('primary');$('hypoBtn').classList.remove('primary');updateMath();};
+$('drawBtn').onclick=start;$('stopBtn').onclick=stop;
+$('clearBtn').onclick=()=>{stop();redrawStatic();};
+$('showGears').onchange=()=>{};
+$('randBtn').onclick=()=>{
+  const R=20+Math.floor(Math.random()*180), r=5+Math.floor(Math.random()*120);
+  $('R').value=R;$('r').value=r;$('d').value=Math.floor(Math.random()*Math.min(200,r*2.5+10));
+  if(Math.random()<0.3){$('epiBtn').click();}else{$('hypoBtn').click();}
+  redrawStatic();start();
+};
+$('saveBtn').onclick=()=>{const a=document.createElement('a');a.download='mr-cycloid.png';a.href=cv.toDataURL('image/png');a.click();};
+$('aboutBtn').onclick=()=>alert('Mr. Cycloid (1986) by Frank Kurzawa — homage.\nA spirograph for B&W Macs.\n\nR= fixed gear, r= moving gear, d= pen hole.\nLobes = r / gcd(R,r).\nInside = hypotrochoid, Outside = epitrochoid.\n\nOriginal ran on System 1.0–4.0, 68K.');
+
+const PRESETS=[[105,45,60,1],[144,96,70,1],[120,36,80,1],[150,60,90,0],[96,40,72,1],[180,60,55,1],[105,65,100,0],[200,120,40,1]];
+const pe=$('presets');
+PRESETS.forEach((p,i)=>{const b=document.createElement('button');b.className='preset';b.textContent=`${p[3]?'in':'out'} ${p[0]}/${p[1]}/${p[2]}`;
+ b.onclick=()=>{$('R').value=p[0];$('r').value=p[1];$('d').value=p[2];(p[3]?$('hypoBtn'):$('epiBtn')).click();redrawStatic();start();};pe.appendChild(b);});
+
+document.addEventListener('keydown',e=>{
+ if(e.key===' '){e.preventDefault();drawing?stop():start();}
+ if(e.key.toLowerCase()==='r'&&!e.metaKey&&document.activeElement.tagName!=='INPUT'){$('randBtn').click();}
+});
+setTimeout(resize,50);setTimeout(()=>{resize();start();},300);
+</script>
+</body>
+</html>
