@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Director 5.0 — Web Synth / Sequencer</title>
+<style>
+/* Macromedia Director 5 (1996) look-and-feel clone. System 7 / Win95 gray UI. */
+:root{
+  --gray:#DDDDDD; --gray2:#C6C6C6; --gray3:#BBBBBB;
+  --ink:#111111; --line:#000000; --white:#FFFFFF;
+  --lcd-bg:#000000; --lcd-fg:#33FF33; --lcd-red:#FF3333;
+  --accent:#CC0000; --blue:#0000AA;
+  --font:"Chicago","Charcoal","Geneva","MS Sans Serif","Tahoma","Verdana",sans-serif;
+  --mono:"Monaco","Courier New",monospace;
+}
+*{box-sizing:border-box; image-rendering:pixelated;}
+body{margin:0;background:#555556 url('data:image/gif;base64,R0lGODdhAgACAIAAAP////8AAP///ywAAAAAAgACAAACAkwBADs=');font-family:var(--font);font-size:12px;color:var(--ink);
+  -webkit-font-smoothing:none;}
+/* desktop pattern: gray dither */
+.menubar{background:var(--gray);border-bottom:2px solid var(--line);display:flex;gap:2px;padding:2px 6px;font-size:13px;user-select:none;}
+.menubar b{padding:1px 8px;font-weight:normal;}
+.menubar b:hover,.menubar b.on{background:#000;color:#fff;}
+.titlebar-main{background:var(--gray);border-bottom:1px solid var(--line);text-align:center;font-size:13px;padding:2px 24px;position:relative;}
+.titlebar-main .tbtn{position:absolute;top:2px;width:14px;height:14px;background:var(--white);border:1px solid #000;box-shadow:inset -1px -1px 0 var(--gray3);font-size:10px;line-height:12px;}
+.toolbar{background:var(--gray);border-bottom:2px solid var(--line);display:flex;gap:4px;padding:4px 6px;flex-wrap:wrap;align-items:center;}
+.tool{width:28px;height:26px;background:var(--white);border:1px solid #000;border-radius:3px;box-shadow:2px 2px 0 #888;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:default;}
+.tool:active{box-shadow:none;transform:translate(1px,1px);}
+.toolsep{width:2px;height:24px;background:var(--gray3);border-left:1px solid #fff;border-right:1px solid #777;}
+.desktop{display:grid;grid-template-columns:340px 1fr 300px;gap:10px;padding:10px;align-items:start;}
+@media(max-width:1000px){.desktop{grid-template-columns:1fr;}}
+/* Classic Mac window: 1px black frame, striped title */
+.window{background:var(--gray);border:2px solid var(--line);box-shadow:4px 4px 0 rgba(0,0,0,.45);}
+.wtitle{border-bottom:2px solid var(--line);padding:2px 6px;font-size:12px;text-align:center;position:relative;background:
+  repeating-linear-gradient(to bottom,#fff 0 1px,var(--gray2) 1px 3px);}
+.wtitle span{background:var(--gray);padding:0 8px;border-left:1px solid #000;border-right:1px solid #000;}
+.wtitle .box{position:absolute;top:3px;left:4px;width:11px;height:11px;background:#fff;border:1px solid #000;}
+.wbody{padding:6px;}
+button.mac{background:#fff;border:1px solid #000;border-radius:5px;box-shadow:1px 1px 0 #000;padding:2px 10px;font-family:var(--font);font-size:12px;cursor:pointer;}
+button.mac:active{box-shadow:none;transform:translate(1px,1px);}
+button.mac.default{font-weight:bold;border-width:2px;}
+/* Control panel LCD */
+.transport{display:flex;gap:4px;align-items:center;margin-bottom:6px;}
+.tbtn{width:30px;height:24px;background:#fff;border:1px solid #000;border-radius:3px;box-shadow:2px 2px 0 #777;font-size:12px;}
+.lcd{background:var(--lcd-bg);color:var(--lcd-red);font-family:var(--mono);font-size:18px;padding:2px 8px;border:2px inset #888;letter-spacing:2px;min-width:64px;text-align:center;}
+.fps{background:#fff;border:2px inset #888;padding:1px 4px;font-family:var(--mono);width:48px;text-align:center;}
+label.k{font-size:11px;}
+input[type=range]{accent-color:#000;}
+/* Score = step sequencer */
+.score-grid{border:2px inset #888;background:#fff;overflow:auto;}
+table.score{border-collapse:collapse;font-size:11px;}
+table.score th,table.score td{border:1px solid #999;min-width:22px;height:20px;text-align:center;padding:0;}
+table.score th{background:var(--gray2);font-weight:normal;position:sticky;top:0;}
+table.score th.chan{background:var(--gray2);}
+td.cell{cursor:pointer;background:#fff;}
+td.cell.on{background:#000;}
+td.cell.playhead{background:var(--accent)!important;}
+td.chanlabel{background:var(--gray2);min-width:64px;text-align:left;padding:0 4px;}
+/* Stage */
+.stage-screen{background:#9FD8D8;border:2px inset #888;height:190px;position:relative;overflow:hidden;
+  background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.06) 0 2px,transparent 2px 4px);}
+.stage-screen .brick{position:absolute;inset:0 0 55% 0;background:repeating-linear-gradient(0deg,#A33 0 10px,#711 10px 12px),repeating-linear-gradient(90deg,#A33 0 20px,#711 20px 22px);}
+.stage-big{position:absolute;font-weight:bold;letter-spacing:1px;}
+.knobrow{display:flex;gap:10px;margin-top:6px;flex-wrap:wrap;}
+.knob{background:#fff;border:1px solid #000;box-shadow:2px 2px 0 #888;padding:4px 6px;width:128px;}
+.knob .v{font-family:var(--mono);background:#000;color:var(--lcd-fg);text-align:center;padding:1px;}
+/* Cast */
+.cast-list{border:2px inset #888;background:#fff;height:220px;overflow:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;}
+.cast-item{border:1px solid #000;background:var(--gray);text-align:center;font-size:10px;padding:3px 1px;cursor:pointer;}
+.cast-item.sel{background:#000;color:#fff;}
+.statusbar{background:var(--gray);border-top:2px solid var(--line);padding:3px 8px;font-size:11px;display:flex;gap:12px;}
+.blink{animation:b 1s steps(2) infinite;}@keyframes b{50%{opacity:0;}}
+.hint{font-size:11px;background:#FFFFCC;border:1px solid #000;padding:4px 6px;margin-top:6px;}
+code{background:#fff;border:1px solid #999;padding:0 3px;}
+</style>
+</head>
+<body>
+<div class="menubar"><b></b><b>File</b><b>Edit</b><b>View</b><b>Insert</b><b>Modify</b><b>Control</b><b>Xtras</b><b>Window</b><b>Help</b></div>
+<div class="titlebar-main">Web Synth / Sequencer — FFDESIG.DIR <span class="tbtn" style="left:4px">▢</span><span class="tbtn" style="right:4px">▢</span></div>
+<div class="toolbar" aria-hidden="true">
+  <div class="tool">📄</div><div class="tool">📂</div><div class="tool">💾</div><div class="toolsep"></div>
+  <div class="tool">✂</div><div class="tool">⎘</div><div class="tool">📌</div><div class="toolsep"></div>
+  <div class="tool">▶</div><div class="tool">⏺</div><div class="tool">⏹</div><div class="toolsep"></div>
+  <div class="tool">🎹</div><div class="tool">🎚</div><div class="tool">🔊</div><div class="tool">⌨</div>
+  <span style="font-size:11px">Director 5.0 clone — drop your synth engine into <code>app.js hooks</code></span>
+</div>
+
+<div class="desktop">
+  <!-- SCORE / SEQUENCER -->
+  <section class="window">
+    <div class="wtitle"><span class="box"></span><span>Score — Step Sequencer</span></div>
+    <div class="wbody">
+      <div style="margin-bottom:4px"><label class="k">Tempo (fps→bpm)</label> <input id="tempo" type="range" min="60" max="180" value="120" style="width:150px"> <span id="tempoV" class="fps">120</span></div>
+      <div class="score-grid"><table class="score" id="score"></table></div>
+      <div class="hint">Click cells to toggle. This mirrors Director's Score: channels (rows) × frames (steps). Wire <code>trigger(row,step,time)</code> to your synth later.</div>
+    </div>
+  </section>
+
+  <!-- STAGE / SYNTH -->
+  <section class="window">
+    <div class="wtitle"><span class="box"></span><span>Stage — Synth</span></div>
+    <div class="wbody">
+      <div class="stage-screen" id="stage">
+        <div class="brick"></div>
+        <div class="stage-big" style="top:38%;left:6%;color:#0022CC;font-size:26px">BROWSE&nbsp;DATA</div>
+        <div class="stage-big" style="top:22%;right:6%;color:#007700;font-size:12px;text-align:right">Database<br>Inside<br>Multimedia</div>
+        <div class="stage-big" id="noteName" style="bottom:8%;left:6%;color:#CC0099;font-size:28px">Make&nbsp;It!</div>
+      </div>
+      <div class="knobrow">
+        <div class="knob"><label class="k">Cutoff</label><input id="cutoff" type="range" min="200" max="8000" value="2400" style="width:100%"><div class="v" id="cutoffV">2400</div></div>
+        <div class="knob"><label class="k">Resonance</label><input id="reso" type="range" min="0" max="20" value="6" style="width:100%"><div class="v" id="resoV">6.0</div></div>
+        <div class="knob"><label class="k">LFO → Pitch</label><input id="lfo" type="range" min="0" max="50" value="8" style="width:100%"><div class="v" id="lfoV">8</div></div>
+        <div class="knob"><label class="k">Wave</label><br><button class="mac" id="waveBtn">Sawtooth</button></div>
+      </div>
+      <div class="hint">Placeholder WebAudio voice (osc→lowpass→gain). Replace <code>playNote()</code> with your engine; keep the knobs — they already write to <code>SynthParams</code>.</div>
+    </div>
+  </section>
+
+  <!-- CONTROL PANEL + CAST -->
+  <section style="display:flex;flex-direction:column;gap:10px">
+    <div class="window">
+      <div class="wtitle"><span class="box"></span><span>Control Panel</span></div>
+      <div class="wbody">
+        <div class="transport">
+          <button class="tbtn" id="rw">◀◀</button>
+          <button class="tbtn" id="play">▶</button>
+          <button class="tbtn" id="stop">■</button>
+          <div class="lcd" id="lcd">0001</div>
+        </div>
+        <div><label class="k">fps.</label> <span class="fps" id="fpsV">15</span> <label class="k">loop</label> <input type="checkbox" id="loop" checked></div>
+        <div style="margin-top:6px;display:flex;gap:6px">
+          <button class="mac default" id="play2">Play</button>
+          <button class="mac" id="stop2">Stop</button>
+        </div>
+      </div>
+    </div>
+    <div class="window">
+      <div class="wtitle"><span class="box"></span><span>Internal Cast — Patches</span></div>
+      <div class="wbody">
+        <div class="cast-list" id="cast"></div>
+        <div class="hint">Cast members = presets. Click to select. Add yours in <code>PATCHES[]</code>.</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="statusbar"><span>©1996 Macromedia clone for study — clean-room CSS, no ROM assets</span><span id="stat">Stopped · step 1/16</span><span class="blink">●</span><span>12:00 AM</span></div>
+
+<script>
+/* Hooks for your synth engine: replace playNote() + PATCHES, keep UI. */
+const SynthParams={cutoff:2400,res:6,lfo:8,wave:'sawtooth'};
+const PATCHES=[
+ {n:'Make It!',w:'sawtooth',c:2400,r:6},{n:'Browse Data',w:'square',c:1200,r:10},
+ {n:'Hypertext',w:'triangle',c:3600,r:2},{n:'Daylight',w:'sine',c:5000,r:1},
+ {n:'Birdloop',w:'sawtooth',c:800,r:14},{n:'Moon2',w:'square',c:3000,r:4},
+ {n:'Genji 1',w:'sawtooth',c:1800,r:8},{n:'Flight 1',w:'triangle',c:2400,r:3}];
+const NOTES=[130.81,146.83,164.81,196.00,220.00,261.63,293.66,329.63]; // C3..E4
+let AC=null,flt=null;
+function ac(){if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)();flt=AC.createBiquadFilter();flt.type='lowpass';flt.connect(AC.destination);}if(AC.state==='suspended')AC.resume();return AC;}
+function playNote(row,step,t){ // <-- REPLACE with your engine
+  try{
+    const c=ac(),o=c.createOscillator(),g=c.createGain(),l=c.createOscillator(),lg=c.createGain();
+    o.type=SynthParams.wave;o.frequency.value=NOTES[row%NOTES.length];
+    flt.frequency.value=SynthParams.cutoff;flt.Q.value=SynthParams.res;
+    l.frequency.value=5;lg.gain.value=SynthParams.lfo;o.connect(flt);
+    l.connect(lg);lg.connect(o.frequency);
+    g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(0.5,t+0.01);g.gain.exponentialRampToValueAtTime(0.0001,t+0.28);
+    flt.connect(g);g.connect(c.destination);o.start(t);l.start(t);o.stop(t+0.32);l.stop(t+0.32);
+    document.getElementById('noteName').textContent=PATCHES[curPatch].n+' · '+NOTES[row%NOTES.length].toFixed(1)+'Hz';
+  }catch(e){}
+}
+/* --- Score grid --- */
+const ROWS=8,COLS=16;let grid=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+grid[0][0]=grid[0][4]=grid[0][8]=grid[0][12]=true;grid[1][4]=grid[1][12]=true;grid[3][2]=grid[3][7]=true;
+const tbl=document.getElementById('score');let hdr='<tr><th>Frame</th>';
+for(let s=0;s<COLS;s++)hdr+=`<th>${s+1}</th>`;hdr+='</tr>';tbl.innerHTML=hdr;
+const names=['Kick','Snare','Hat','Bass','Lead','Pad','FX','Vox'];
+for(let r=0;r<ROWS;r++){const tr=document.createElement('tr');tr.innerHTML=`<td class="chanlabel">${r+16} ${names[r]}</td>`;
+ for(let s=0;s<COLS;s++){const td=document.createElement('td');td.className='cell'+(grid[r][s]?' on':'');td.dataset.r=r;td.dataset.s=s;
+  td.onclick=()=>{grid[r][s]=!grid[r][s];td.classList.toggle('on',grid[r][s]);};tr.appendChild(td);}tbl.appendChild(tr);}
+/* --- Transport --- */
+let playing=false,step=0,timer=null,curPatch=0;
+const lcd=document.getElementById('lcd'),stat=document.getElementById('stat');
+function sched(){const bpm=+document.getElementById('tempo').value;const spb=60/bpm/2;const c=ac();let t=c.currentTime+0.05;
+  // schedule current step's rows
+  document.querySelectorAll('#score td.cell').forEach(td=>td.classList.remove('playhead'));
+  for(let r=0;r<ROWS;r++)if(grid[r][step])playNote(r,step,t);
+  document.querySelectorAll(`#score td.cell[data-s="${step}"]`).forEach(td=>td.classList.add('playhead'));
+  lcd.textContent=String(step+1).padStart(4,'0');stat.textContent=(playing?'Playing':'Stopped')+` · step ${step+1}/${COLS} · ${bpm}bpm`;
+  step=(step+1)%COLS;if(step===0&&!document.getElementById('loop').checked)stop();}
+function play(){if(playing)return;playing=true;ac();sched();const bpm=+document.getElementById('tempo').value;timer=setInterval(sched,60000/bpm/2);}
+function stop(){playing=false;clearInterval(timer);stat.textContent=`Stopped · step ${step+1}/${COLS}`;}
+document.getElementById('play').onclick=play;document.getElementById('play2').onclick=play;
+document.getElementById('stop').onclick=()=>{stop();step=0;lcd.textContent='0001';};
+document.getElementById('stop2').onclick=()=>{stop();step=0;lcd.textContent='0001';};
+document.getElementById('rw').onclick=()=>{step=0;lcd.textContent='0001';};
+document.getElementById('tempo').oninput=e=>{document.getElementById('tempoV').textContent=e.target.value;document.getElementById('fpsV').textContent=Math.round(e.target.value/8);if(playing){clearInterval(timer);timer=setInterval(sched,60000/e.target.value/2);}};
+/* knobs */
+const bind=(id,vid,fn)=>{document.getElementById(id).oninput=e=>{document.getElementById(vid).textContent=e.target.value;fn(+e.target.value);};};
+bind('cutoff','cutoffV',v=>SynthParams.cutoff=v);bind('reso','resoV',v=>SynthParams.res=v);bind('lfo','lfoV',v=>SynthParams.lfo=v);
+const waves=['sawtooth','square','triangle','sine'];
+document.getElementById('waveBtn').onclick=e=>{let i=(waves.indexOf(SynthParams.wave)+1)%waves.length;SynthParams.wave=waves[i];e.target.textContent=waves[i][0].toUpperCase()+waves[i].slice(1);};
+/* cast */
+const cast=document.getElementById('cast');
+PATCHES.forEach((p,i)=>{const d=document.createElement('div');d.className='cast-item'+(i===0?' sel':'');d.textContent='♫ '+p.n;d.onclick=()=>{
+ document.querySelectorAll('.cast-item').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');curPatch=i;
+ SynthParams.wave=p.w;SynthParams.cutoff=p.c;SynthParams.res=p.r;
+ document.getElementById('cutoff').value=p.c;document.getElementById('cutoffV').textContent=p.c;
+ document.getElementById('reso').value=p.r;document.getElementById('resoV').textContent=p.r;
+ document.getElementById('waveBtn').textContent=p.w[0].toUpperCase()+p.w.slice(1);};cast.appendChild(d);});
+</script>
+</body>
+</html>

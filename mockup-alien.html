@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Director 5.0 x Extraterrestrials — Web Synth Mockup</title>
+<style>
+:root{
+  --gray:#DDDDDD; --gray2:#C6C6C6; --gray3:#BBBBBB; --ink:#111; --line:#000; --white:#fff;
+  --font:"Chicago","Charcoal","Geneva","MS Sans Serif","Tahoma",sans-serif;
+  --mono:"Monaco","Courier New",monospace;
+  --alien-green:#39FF6A; --stone:#3B2452; --stone2:#2A1839; --lcd-bg:#000;
+}
+*{box-sizing:border-box;image-rendering:pixelated;}
+body{margin:0;background:#555556;font-family:var(--font);font-size:12px;color:var(--ink);-webkit-font-smoothing:none;}
+.menubar{background:var(--gray);border-bottom:2px solid var(--line);display:flex;gap:2px;padding:2px 6px;font-size:13px;}
+.menubar b{padding:1px 8px;font-weight:normal;}
+.titlebar-main{background:var(--gray);border-bottom:1px solid var(--line);text-align:center;font-size:13px;padding:2px 24px;}
+.toolbar{background:var(--gray);border-bottom:2px solid var(--line);display:flex;gap:4px;padding:4px 6px;flex-wrap:wrap;align-items:center;}
+.tool{width:28px;height:26px;background:#fff;border:1px solid #000;border-radius:3px;box-shadow:2px 2px 0 #888;display:flex;align-items:center;justify-content:center;font-size:14px;}
+.desktop{display:grid;grid-template-columns:330px 1fr 290px;gap:10px;padding:10px;align-items:start;}
+@media(max-width:1000px){.desktop{grid-template-columns:1fr;}}
+.window{background:var(--gray);border:2px solid var(--line);box-shadow:4px 4px 0 rgba(0,0,0,.45);}
+.wtitle{border-bottom:2px solid var(--line);padding:2px 6px;font-size:12px;text-align:center;background:repeating-linear-gradient(to bottom,#fff 0 1px,var(--gray2) 1px 3px);}
+.wtitle span{background:var(--gray);padding:0 8px;border-left:1px solid #000;border-right:1px solid #000;}
+.wbody{padding:6px;}
+button.mac{background:#fff;border:1px solid #000;border-radius:5px;box-shadow:1px 1px 0 #000;padding:2px 10px;font-family:var(--font);font-size:12px;cursor:pointer;}
+button.mac:active{box-shadow:none;transform:translate(1px,1px);}
+.score-grid{border:2px inset #888;background:#fff;overflow:auto;}
+table.score{border-collapse:collapse;font-size:11px;}
+table.score th,table.score td{border:1px solid #999;min-width:21px;height:19px;text-align:center;padding:0;}
+table.score th{background:var(--gray2);font-weight:normal;}
+td.cell{cursor:pointer;background:#fff;}td.cell.on{background:#000;}td.cell.playhead{background:#CC0000!important;}
+td.chanlabel{background:var(--gray2);min-width:62px;text-align:left;padding:0 4px;}
+.transport{display:flex;gap:4px;align-items:center;margin-bottom:6px;}
+.tbtn{width:30px;height:24px;background:#fff;border:1px solid #000;border-radius:3px;box-shadow:2px 2px 0 #777;}
+.lcd{background:#000;color:#FF3333;font-family:var(--mono);font-size:18px;padding:2px 8px;border:2px inset #888;letter-spacing:2px;min-width:64px;text-align:center;}
+.fps{background:#fff;border:2px inset #888;padding:1px 4px;font-family:var(--mono);}
+.cast-list{border:2px inset #888;background:#fff;height:210px;overflow:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px;}
+.cast-item{border:1px solid #000;background:var(--gray);text-align:center;font-size:10px;padding:3px 1px;cursor:pointer;}
+.cast-item.sel{background:#000;color:#fff;}
+.hint{font-size:11px;background:#FFFFCC;border:1px solid #000;padding:4px 6px;margin-top:6px;}
+code{background:#fff;border:1px solid #999;padding:0 3px;}
+.statusbar{background:var(--gray);border-top:2px solid var(--line);padding:3px 8px;font-size:11px;display:flex;gap:12px;}
+/* ---- ALIEN STAGE (Extraterrestrials style, clean-room redraw) ---- */
+.alien-frame{background:linear-gradient(135deg,var(--stone),var(--stone2) 60%,#4A2E63);border:3px solid #120A1C;outline:2px solid #000;box-shadow:inset 0 0 0 2px #5C3F7A,inset 0 0 22px #000;padding:8px;
+  background-image:radial-gradient(circle at 20% 30%,rgba(255,255,255,.06) 0 2px,transparent 3px),radial-gradient(circle at 70% 60%,rgba(0,0,0,.35) 0 3px,transparent 4px),linear-gradient(135deg,#3B2452,#241432);}
+.alien-screen{background:#040404;border:2px solid #000;box-shadow:inset 0 0 18px #000;position:relative;height:230px;overflow:hidden;color:var(--alien-green);}
+.alien-screen svg.circuits{position:absolute;inset:0;width:100%;height:100%;opacity:.8;}
+.alien-glyph{position:absolute;text-align:center;font-family:var(--mono);}
+.stamp{border:2px solid #BABABA;color:#CFCFCF;font-family:var(--mono);font-size:11px;padding:2px 6px;transform:rotate(-8deg);border-radius:50%;opacity:.9;}
+.alien-bottom{display:grid;grid-template-columns:86px 1fr 64px 96px 40px;gap:8px;margin-top:8px;align-items:stretch;}
+.a-panel{background:#1A1026;border:2px solid #000;box-shadow:inset 0 0 0 1px #5C3F7A;padding:4px;min-height:76px;}
+.a-label{font-family:var(--mono);font-size:9px;color:var(--alien-green);letter-spacing:1px;}
+.led{width:10px;height:10px;border-radius:50%;background:#330000;border:1px solid #000;display:inline-block;margin:1px;}
+.led.on{background:#FF2222;box-shadow:0 0 6px #FF2222;}.led.grn.on{background:var(--alien-green);box-shadow:0 0 6px var(--alien-green);}
+.a-lcd{background:#000;border:2px inset #555;color:var(--alien-green);font-family:var(--mono);font-size:11px;padding:4px;text-align:center;min-height:44px;}
+.pad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:4px;}
+.pad{width:100%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7A3030,#2A0A0A);border:2px solid #000;cursor:pointer;}
+.pad:active,.pad.hit{background:radial-gradient(circle at 35% 30%,#FF6666,#550000);box-shadow:0 0 10px #FF2222;}
+.knob-a{width:44px;height:44px;border-radius:50%;background:conic-gradient(#888,#222,#888);border:2px solid #000;margin:2px auto;position:relative;cursor:ns-resize;}
+.knob-a::after{content:"";position:absolute;left:50%;top:2px;width:3px;height:14px;background:var(--alien-green);transform-origin:50% 20px;}
+input[type=range]{accent-color:#000;}input[type=range].vert{writing-mode:vertical-lr;direction:rtl;height:90px;width:22px;}
+.blink{animation:b 1s steps(2) infinite;}@keyframes b{50%{opacity:0;}}
+</style>
+</head>
+<body>
+<div class="menubar"><b></b><b>File</b><b>Edit</b><b>View</b><b>Insert</b><b>Modify</b><b>Control</b><b>Xtras</b><b>Window</b><b>Help</b></div>
+<div class="titlebar-main">Web Synth / Sequencer — mockup v2 (Director 5 shell + alien Stage skin)</div>
+<div class="toolbar"><div class="tool">📄</div><div class="tool">📂</div><div class="tool">💾</div><div class="tool">▶</div><div class="tool">⏺</div><div class="tool">🎹</div><div class="tool">🎚</div><span style="font-size:11px">GitHub-ready: this single file can be <code>index.html</code> on Pages. Synth hooks: <code>playNote()</code>, <code>PATCHES[]</code>, <code>SynthParams</code></span></div>
+
+<div class="desktop">
+  <section class="window">
+    <div class="wtitle"><span>Score — Step Sequencer</span></div>
+    <div class="wbody">
+      <div><label>Tempo</label> <input id="tempo" type="range" min="60" max="180" value="120" style="width:130px"> <span id="tempoV" class="fps">120</span></div>
+      <div class="score-grid"><table class="score" id="score"></table></div>
+      <div class="hint">Director Score metaphor: rows = channels, columns = frames. Click cells. <code>trigger(row,step,time)</code> is the seam for your engine.</div>
+    </div>
+  </section>
+
+  <section class="window">
+    <div class="wtitle"><span>Stage — 👽 Alien Skin (Extraterrestrials style)</span></div>
+    <div class="wbody">
+      <div class="alien-frame">
+        <div class="alien-screen" id="ascreen">
+          <svg class="circuits" viewBox="0 0 400 230" preserveAspectRatio="none">
+            <g stroke="#1E7A38" stroke-width="1.5" fill="none">
+              <path d="M10 60 H120 L140 80 H200 M10 90 H90 L110 110 H180 M250 40 H330 L350 60 V110 M250 120 H320 L340 140 V180 M150 160 H230 L250 180 M60 150 H130 V190"/>
+              <circle cx="120" cy="60" r="3"/><circle cx="90" cy="90" r="3"/><circle cx="330" cy="40" r="3"/><circle cx="250" cy="120" r="3"/><circle cx="130" cy="150" r="3"/>
+            </g>
+          </svg>
+          <div class="alien-glyph" style="left:8%;top:12%;font-size:52px;filter:grayscale(1) brightness(1.6)">👽</div>
+          <div class="alien-glyph" style="left:12%;top:62%;font-size:44px">💿</div>
+          <div class="alien-glyph" style="left:46%;top:14%"><div class="stamp">CLASSIFIED</div><div style="font-size:10px;color:#BABABA">◉◉◉</div></div>
+          <div class="alien-glyph" style="left:48%;top:56%;font-size:11px;color:#BABABA">🖥️⌨️<br>▬▬▬</div>
+          <div class="alien-glyph" style="right:16%;top:10%;font-size:30px">🖖</div>
+          <div class="alien-glyph" id="aNote" style="right:4%;bottom:6%;font-size:12px;color:var(--alien-green)">INCOMING DATA...</div>
+        </div>
+        <div class="alien-bottom">
+          <div class="a-panel"><div class="a-label">FILTER</div><div class="knob-a" id="kCut"></div><div class="a-lcd" id="cutV">2400</div></div>
+          <div class="a-panel"><div class="a-label">INCOMING DATA...</div><div class="a-lcd"><span id="stepRead">STEP 0001 · 120BPM</span><br><span class="blink">●</span> RECEIVING</div>
+            <div style="margin-top:4px"><span class="led grn on"></span><span class="led grn on"></span><span class="led on"></span><span class="led"></span></div></div>
+          <div class="a-panel"><div class="a-label">RESO</div><div class="knob-a" id="kRes"></div><div class="a-lcd" id="resV">6.0</div></div>
+          <div class="a-panel"><div class="a-label">PRESS TO PLAY</div><div class="pad-grid" id="pads"></div></div>
+          <div class="a-panel"><div class="a-label">LVL</div><input type="range" class="vert" id="vol" min="0" max="100" value="80"></div>
+        </div>
+      </div>
+      <div class="hint">Alien panel = the synth voice. Pads trigger notes, knobs = cutoff/resonance (drag vertically), slider = volume. Outer gray windows stay Director 5.</div>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:10px">
+    <div class="window"><div class="wtitle"><span>Control Panel</span></div>
+      <div class="wbody"><div class="transport">
+        <button class="tbtn" id="rw">◀◀</button><button class="tbtn" id="play">▶</button><button class="tbtn" id="stop">■</button>
+        <div class="lcd" id="lcd">0001</div></div>
+        <div><label>fps.</label> <span class="fps" id="fpsV">15</span> <label>loop</label> <input type="checkbox" id="loop" checked></div>
+        <div style="margin-top:6px;display:flex;gap:6px"><button class="mac" id="play2">Play</button><button class="mac" id="stop2">Stop</button></div>
+      </div></div>
+    <div class="window"><div class="wtitle"><span>Internal Cast — Patches</span></div>
+      <div class="wbody"><div class="cast-list" id="cast"></div>
+      <div class="hint">Presets live here. Add yours in <code>PATCHES[]</code>.</div></div></div>
+  </section>
+</div>
+<div class="statusbar"><span>Mockup v2 — Director shell + alien Stage · clean-room redraw, no ripped assets</span><span id="stat">Stopped</span></div>
+
+<script>
+const SynthParams={cutoff:2400,res:6,wave:'sawtooth',vol:.8};
+const PATCHES=[{n:'Make It!',w:'sawtooth',c:2400,r:6},{n:'CLASSIFIED',w:'square',c:1100,r:11},{n:'Birdloop',w:'sawtooth',c:800,r:14},{n:'Moon2',w:'square',c:3000,r:4},{n:'Daylight',w:'sine',c:5000,r:1},{n:'Hypertext',w:'triangle',c:3600,r:2},{n:'Genji 1',w:'sawtooth',c:1800,r:8},{n:'Flight 1',w:'triangle',c:2400,r:3}];
+const NOTES=[130.81,146.83,164.81,196,220,261.63,293.66,329.63];
+let AC=null,flt=null,master=null;
+function ac(){if(!AC){AC=new (window.AudioContext||window.webkitAudioContext)();flt=AC.createBiquadFilter();flt.type='lowpass';master=AC.createGain();flt.connect(master);master.connect(AC.destination);}if(AC.state==='suspended')AC.resume();return AC;}
+function playNote(row,step,t){try{const c=ac();master.gain.value=SynthParams.vol;
+  const o=c.createOscillator(),g=c.createGain();o.type=SynthParams.wave;o.frequency.value=NOTES[row%NOTES.length];
+  flt.frequency.value=SynthParams.cutoff;flt.Q.value=SynthParams.res;
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.5,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+.28);
+  o.connect(flt);flt.connect(g);g.connect(master);o.start(t);o.stop(t+.32);
+  document.getElementById('aNote').textContent=PATCHES[curPatch].n+' · '+NOTES[row%NOTES.length].toFixed(1)+'Hz';
+ }catch(e){}}
+/* score */
+const ROWS=8,COLS=16;let grid=Array.from({length:ROWS},()=>Array(COLS).fill(false));
+grid[0][0]=grid[0][4]=grid[0][8]=grid[0][12]=true;grid[1][4]=grid[1][12]=true;grid[3][2]=grid[3][7]=true;
+const tbl=document.getElementById('score');let hdr='<tr><th>Frame</th>';for(let s=0;s<COLS;s++)hdr+=`<th>${s+1}</th>`;tbl.innerHTML=hdr+'</tr>';
+const names=['Kick','Snare','Hat','Bass','Lead','Pad','FX','Vox'];
+for(let r=0;r<ROWS;r++){const tr=document.createElement('tr');tr.innerHTML=`<td class="chanlabel">${r+16} ${names[r]}</td>`;
+ for(let s=0;s<COLS;s++){const td=document.createElement('td');td.className='cell'+(grid[r][s]?' on':'');td.dataset.r=r;td.dataset.s=s;
+ td.onclick=()=>{grid[r][s]=!grid[r][s];td.classList.toggle('on',grid[r][s]);};tr.appendChild(td);}tbl.appendChild(tr);}
+let playing=false,step=0,timer=null,curPatch=0;
+const lcd=document.getElementById('lcd'),stat=document.getElementById('stat'),stepRead=document.getElementById('stepRead');
+function sched(){const bpm=+document.getElementById('tempo').value;const c=ac();let t=c.currentTime+.05;
+ document.querySelectorAll('#score td.cell').forEach(td=>td.classList.remove('playhead'));
+ for(let r=0;r<ROWS;r++)if(grid[r][step])playNote(r,step,t);
+ document.querySelectorAll(`#score td.cell[data-s="${step}"]`).forEach(td=>td.classList.add('playhead'));
+ lcd.textContent=String(step+1).padStart(4,'0');stepRead.textContent=`STEP ${String(step+1).padStart(4,'0')} · ${bpm}BPM`;
+ stat.textContent=(playing?'Playing':'Stopped')+` · step ${step+1}/${COLS}`;step=(step+1)%COLS;
+ if(step===0&&!document.getElementById('loop').checked)stop();}
+function play(){if(playing)return;playing=true;ac();sched();timer=setInterval(sched,60000/+document.getElementById('tempo').value/2);}
+function stop(){playing=false;clearInterval(timer);stat.textContent=`Stopped · step ${step+1}/${COLS}`;}
+document.getElementById('play').onclick=play;document.getElementById('play2').onclick=play;
+document.getElementById('stop').onclick=()=>{stop();step=0;lcd.textContent='0001';};
+document.getElementById('stop2').onclick=()=>{stop();step=0;lcd.textContent='0001';};
+document.getElementById('rw').onclick=()=>{step=0;lcd.textContent='0001';};
+document.getElementById('tempo').oninput=e=>{document.getElementById('tempoV').textContent=e.target.value;document.getElementById('fpsV').textContent=Math.round(e.target.value/8);if(playing){clearInterval(timer);timer=setInterval(sched,60000/e.target.value/2);}};
+document.getElementById('vol').oninput=e=>SynthParams.vol=e.target.value/100;
+/* alien knobs: vertical drag */
+function dragKnob(el,fn){let y0=0,v0=0;el.addEventListener('pointerdown',e=>{y0=e.clientY;v0=parseFloat(el.dataset.v||0);el.setPointerCapture(e.pointerId);
+ const mv=ev=>{const dv=(y0-ev.clientY)/120;fn(v0+dv);};const up=()=>{el.removeEventListener('pointermove',mv);el.removeEventListener('pointerup',up);};
+ el.addEventListener('pointermove',mv);el.addEventListener('pointerup',up);});}
+const kCut=document.getElementById('kCut'),kRes=document.getElementById('kRes');kCut.dataset.v=.5;kRes.dataset.v=.3;
+dragKnob(kCut,d=>{d=Math.min(1,Math.max(0,d));kCut.dataset.v=d;SynthParams.cutoff=Math.round(200+d*7800);document.getElementById('cutV').textContent=SynthParams.cutoff;});
+dragKnob(kRes,d=>{d=Math.min(1,Math.max(0,d));kRes.dataset.v=d;SynthParams.res=+(d*20).toFixed(1);document.getElementById('resV').textContent=SynthParams.res.toFixed(1);});
+/* pads */
+const pads=document.getElementById('pads');
+for(let i=0;i<6;i++){const b=document.createElement('button');b.className='pad';b.title='Pad '+(i+1);
+ b.onclick=()=>{ac();playNote(i,step,AC.currentTime);b.classList.add('hit');setTimeout(()=>b.classList.remove('hit'),150);};pads.appendChild(b);}
+/* cast */
+const cast=document.getElementById('cast');
+PATCHES.forEach((p,i)=>{const d=document.createElement('div');d.className='cast-item'+(i===0?' sel':'');d.textContent='♫ '+p.n;
+ d.onclick=()=>{document.querySelectorAll('.cast-item').forEach(x=>x.classList.remove('sel'));d.classList.add('sel');curPatch=i;
+ SynthParams.wave=p.w;SynthParams.cutoff=p.c;SynthParams.res=p.r;
+ document.getElementById('cutV').textContent=p.c;document.getElementById('resV').textContent=p.r;};cast.appendChild(d);});
+</script>
+</body>
+</html>
