@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Xyphus — Homage (Penguin 1984)</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#000;color:#0f0;font-family:monospace}
+#bar{background:#111;border-bottom:2px solid #0f0;padding:6px 10px;font-size:13px;font-weight:bold}
+#main{display:flex;height:calc(100% - 33px);max-width:1000px;margin:0 auto}
+#map{flex:1;display:flex;align-items:center;justify-content:center;padding:8px}
+canvas{image-rendering:pixelated;background:#000;border:2px solid #0f0;max-width:100%}
+#side{width:300px;background:#0a0a0a;border-left:2px solid #0f0;padding:8px;font-size:12px;overflow-y:auto}
+button{background:#0f0;border:none;font-family:inherit;font-weight:bold;padding:5px 10px;margin:2px;cursor:pointer;color:#000}
+button:disabled{background:#444;color:#888}
+h3{font-size:12px;border-bottom:1px solid #0f0;margin:8px 0 4px}
+#log{height:150px;overflow-y:auto;border:1px solid #0f0;padding:4px;white-space:pre-wrap}
+.pm{border:1px solid #0f0;padding:4px;margin:3px 0}.pm b{color:#ff0}
+@media(max-width:760px){#main{flex-direction:column}#side{width:100%;border-left:none;border-top:2px solid #0f0}}
+</style>
+</head>
+<body>
+<div id="bar">⚔ XYPHUS — lands of Arroya (homage, Penguin Software 1984)</div>
+<div id="main"><div id="map"><canvas id="c" width="480" height="480"></canvas></div>
+<div id="side">
+<h3>Party (up to 4)</h3><div id="party"></div>
+<div><button id="new">New party</button><button id="heal">🏕 Rest (10g)</button><button id="shop">🛒 Sword+2 (40g)</button></div>
+<h3>Move: arrows / WASD — as a group</h3>
+<div id="log"></div>
+<h3>Dungeon level <span id="dl">1</span>/6 — find the stairs ▼, slay XYPHUS on 6</h3>
+</div></div>
+<script>
+"use strict";
+// Mini Xyphus: hex-ish grid (drawn as hexes), 4 heroes, random encounters, turn combat, XP/gold, 6 levels.
+const cv=document.getElementById('c'),x=cv.getContext('2d');
+const W=12,H=12,HEX=22;
+let party=[],px=1,py=1,level=1,gold=30,stairs=null,foes=[],inCombat=null,save_={};
+function log(s){const l=document.getElementById('log');l.textContent+=s+'\n';l.scrollTop=1e6;}
+function mkHero(i){
+ const races=['human','dwarf','elf'],cls=['fighter','fighter','mage'];
+ const r=races[i%3],c=cls[i%3];
+ const base={hp:r==='dwarf'?34:r==='elf'?24:28,max:0,end:10+((i*7)%6),str:c==='fighter'?14+((i*5)%5):8,mag:c==='mage'?14:6,lvl:1,xp:0,alive:1};
+ base.max=base.hp;
+ return {name:['Aldon','Brigg','Celwen','Dain'][i],race:r,cls:c,...base,wpn:0};}
+function newParty(){party=[mkHero(0),mkHero(1),mkHero(2),mkHero(3)];gold=30;level=1;gen();log('Four heroes enter Arroya. Find the ▼ stairs.');save();}
+function save(){try{localStorage.setItem('xyphus',JSON.stringify({party,px,py,level,gold}));}catch{}}
+function load(){try{const s=JSON.parse(localStorage.getItem('xyphus')||'null');if(s&&s.party){party=s.party;px=s.px;py=s.py;level=s.level;gold=s.gold;gen();return 1;}}catch{}return 0;}
+function gen(){
+ stairs={x:2+((Math.random()*(W-4))|0),y:2+((Math.random()*(H-4))|0)};
+ if(stairs.x===px&&stairs.y===py)stairs.x=(stairs.x+5)%W;
+ document.getElementById('dl').textContent=level;draw();}
+// hex centers (pointy-top offset)
+function hexXY(cx,cy){return [30+cx*HEX*1.74+(cy%2?HEX*0.87:0),30+cy*HEX*1.5];}
+function draw(){
+ x.fillStyle='#000';x.fillRect(0,0,480,480);
+ for(let cy=0;cy<H;cy++)for(let cx=0;cx<W;cx++){
+  const [X,Y]=hexXY(cx,cy);x.strokeStyle='#063';x.beginPath();
+  for(let k=0;k<=6;k++){const a=Math.PI/3*k+Math.PI/6;const px2=X+HEX*0.95*Math.cos(a),py2=Y+HEX*0.95*Math.sin(a);k?x.lineTo(px2,py2):x.moveTo(px2,py2);}
+  x.stroke();}
+ const [sx,sy]=hexXY(stairs.x,stairs.y);x.fillStyle='#ff0';x.font='16px monospace';x.fillText('▼',sx-6,sy+6);
+ const [X,Y]=hexXY(px,py);x.fillStyle='#0f0';x.font='bold 16px monospace';x.fillText('♞',X-7,Y+6);
+ if(inCombat){x.fillStyle='#f00';x.font='bold 14px monospace';x.fillText('⚔ COMBAT ⚔',180,20);}
+ renderParty();}
+function renderParty(){const p=document.getElementById('party');p.innerHTML='';
+ party.forEach(h=>{const d=document.createElement('div');d.className='pm';
+  d.innerHTML=`<b>${h.name}</b> ${h.race} ${h.cls} Lv${h.lvl}<br>HP ${Math.max(0,h.hp)}/${h.max} XP ${h.xp} ${h.alive?'':'💀'}`;
+  p.appendChild(d);});
+ const g=document.createElement('div');g.innerHTML=`<b>Gold: ${gold}</b>`;p.appendChild(g);}
+function alive(){return party.filter(h=>h.alive);}
+function encounter(){
+ const n=1+((Math.random()*3)|0),L=level;
+ foes=[];const names=['goblin','orc','skeleton','wraith','ogre','demon'];
+ for(let i=0;i<n;i++){const hp=10+L*7+((Math.random()*10)|0);
+  foes.push({name:names[Math.min(5,(Math.random()*3+L/2)|0)],hp,max:hp,atk:4+L*2});}
+ inCombat={round:1};log(`⚔ ${n} foe(s) attack! [A]ttack [M]agic [F]lee — press key`);draw();}
+function combat(key){
+ if(!inCombat)return;
+ const k=key.toLowerCase();
+ if(k==='f'&&Math.random()<0.5){log('You flee!');inCombat=null;foes=[];draw();return;}
+ if(k!=='a'&&k!=='m'){log('A=attack M=magic F=flee');return;}
+ // heroes strike
+ for(const h of alive()){
+  if(!foes.length)break;
+  let dmg=h.cls==='mage'?(k==='m'?8+h.mag+h.lvl*2:3+h.str):4+h.str+h.wpn+h.lvl;
+  if(h.cls==='fighter'||k==='a'||h.cls==='mage'){}
+  if(h.cls==='mage'&&k!=='m')dmg=2+h.str;
+  dmg=Math.max(1,dmg+((Math.random()*5)|0)-2);
+  const f=foes[0];f.hp-=dmg;log(`${h.name} hits ${f.name} ${dmg}`);
+  if(f.hp<=0){log(`${f.name} slain!`);foes.shift();}}
+ if(!foes.length){win();return;}
+ // foes strike
+ for(const f of foes){const t=alive()[(Math.random()*alive().length)|0];if(!t)break;
+  const d=Math.max(1,f.atk-2+((Math.random()*5)|0));t.hp-=d;log(`${f.name} hits ${t.name} ${d}`);
+  if(t.hp<=0){t.hp=0;t.alive=0;log(`${t.name} falls! 💀`);}}
+ if(!alive().length){log('PARTY WIPED. Press N for new party.');inCombat=null;draw();return;}
+ draw();}
+function win(){
+ inCombat=null;const xp=8+level*6,g=5+level*4+((Math.random()*10)|0);
+ gold+=g;log(`Victory! +${xp} XP each, +${g} gold`);
+ for(const h of alive()){h.xp+=xp;
+  const need=h.lvl*30;
+  if(h.xp>=need){h.lvl++;h.xp-=need;h.max+=8;h.hp=h.max;h.str+=2;h.mag+=2;log(`${h.name} reaches level ${h.lvl}!`);}}
+ if(level===6&&foes===null){}
+ draw();save();}
+function step(dx,dy){
+ if(inCombat){log('In combat! A/M/F');return;}
+ if(!alive().length){log('Party dead. N = new party');return;}
+ px=Math.max(0,Math.min(W-1,px+dx));py=Math.max(0,Math.min(H-1,py+dy));
+ if(px===stairs.x&&py===stairs.y){
+  if(level>=6){boss();return;}
+  level++;log(`Descending to level ${level}…`);gen();save();draw();return;}
+ if(Math.random()<0.22)encounter();else draw();
+ save();}
+function boss(){
+ foes=[{name:'XYPHUS 👹',hp:120,max:120,atk:22}];inCombat={round:1,boss:1};
+ log('👹 XYPHUS, demon lord of Arroya, rises! Slay him!');
+ // wrap win for boss
+ const oldWin=win;
+ draw();}
+const _win=win;
+win=function(){
+ if(inCombat&&inCombat.boss&&foes.length===0){
+  inCombat=null;log('🏆 XYPHUS IS SLAIN! Arroya is free! (N = new quest)');draw();save();return;}
+ _win();};
+addEventListener('keydown',e=>{
+ const k=e.key.toLowerCase();
+ if(inCombat){combat(k);return;}
+ if(k==='arrowup'||k==='w')step(0,-1);
+ else if(k==='arrowdown'||k==='s')step(0,1);
+ else if(k==='arrowleft'||k==='a')step(-1,0);
+ else if(k==='arrowright'||k==='d')step(1,0);
+ else if(k==='n'){newParty();draw();renderParty();}
+ e.preventDefault();});
+document.getElementById('new').onclick=()=>{newParty();draw();renderParty();};
+document.getElementById('heal').onclick=()=>{
+ if(gold<10)return log('Need 10g');
+ gold-=10;party.forEach(h=>{if(h.hp<=0&&Math.random()<0.5){h.alive=1;h.hp=1;}if(h.alive)h.hp=h.max;});
+ log('Rested. HP restored.');renderParty();save();};
+document.getElementById('shop').onclick=()=>{
+ const h=alive().find(h=>h.cls==='fighter');if(!h)return log('No living fighter');
+ if(gold<40)return log('Need 40g');gold-=40;h.wpn+=2;log(`${h.name} sword +2 (now +${h.wpn})`);renderParty();save();};
+if(!load())newParty();
+draw();renderParty();
+</script>
+</body>
+</html>

@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LisaCalc 3.0 — Homage (Apple Lisa, 1984)</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#fff;color:#000;
+  font-family:Geneva,"Helvetica Neue",Chicago,Verdana,sans-serif;font-size:12px;overflow:hidden}
+#bar{height:30px;display:flex;align-items:center;gap:16px;padding:0 12px;
+  background:linear-gradient(#fff,#e9e9e9);border-bottom:2px solid #000;user-select:none}
+#bar b{font-size:14px}#bar .men{margin-left:8px;display:flex;gap:14px;color:#333}
+#bar .apple{font-size:16px}
+#bar .sub{margin-left:auto;font-weight:normal;color:#555}
+#formula{display:flex;align-items:stretch;border-bottom:2px solid #000;background:#f4f4f4;height:30px}
+#cell{width:96px;display:flex;align-items:center;justify-content:center;font-weight:bold;
+  border-right:2px solid #000;background:#e4e4e4;user-select:none}
+#fx{flex:1;border:0;background:#fff;padding:0 8px;font-family:Monaco,monospace;font-size:13px;outline:none}
+#fx:focus{background:#ffffe0;box-shadow:inset 0 0 0 2px #000}
+.fb{border-left:2px solid #000;background:#e4e4e4;width:34px;font-size:15px;cursor:pointer}
+.fb:active{background:#c8c8c8}
+#wrap{position:absolute;top:62px;bottom:26px;left:0;right:0;overflow:auto;background:#fff}
+table{border-collapse:separate;border-spacing:0;table-layout:fixed}
+th,td{border-right:1px solid #b0b0b0;border-bottom:1px solid #b0b0b0;
+  padding:0 5px;height:24px;line-height:23px;font-weight:normal;font-size:12px;
+  white-space:nowrap;overflow:hidden;text-overflow:clip;vertical-align:middle}
+thead th{background:#dedede;font-weight:bold;text-align:center;position:sticky;top:0;z-index:3;
+  border-bottom:2px solid #000;user-select:none;cursor:pointer}
+tbody th{background:#dedede;font-weight:bold;text-align:center;position:sticky;left:0;z-index:2;
+  border-right:2px solid #000;user-select:none;cursor:pointer}
+th.corner{position:sticky;left:0;top:0;z-index:4;background:#cfcfcf;min-width:34px}
+.rz{position:absolute;top:0;right:-3px;width:6px;height:100%;cursor:col-resize;z-index:5}
+thead th{position:sticky}
+thead th .rz{position:absolute}
+td{cursor:cell;background:#fff}
+td.sel{box-shadow:inset 0 0 0 2px #000;background:#fff}
+td.rng{background:#e8eef7}
+td.hl{background:#e4e4e4}
+td.err{color:#b00}
+td.num{text-align:right}
+td.editing{padding:0;overflow:visible}
+td input.cellin{width:100%;height:100%;border:2px solid #000;font:inherit;padding:0 3px;
+  outline:none;background:#fff;font-family:Monaco,monospace}
+#status{position:absolute;bottom:0;left:0;right:0;height:26px;display:flex;align-items:center;
+  gap:16px;padding:0 10px;border-top:2px solid #000;background:#e9e9e9;font-size:11px;user-select:none}
+#status .msg{flex:1;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#status .calc{font-family:Monaco,monospace}
+.tb{display:flex;align-items:center;gap:6px;padding:0 10px;height:30px;background:#e9e9e9;
+  border-bottom:1px solid #999}
+.tb button{font-family:inherit;font-size:11px;border:1px solid #666;background:linear-gradient(#fff,#ddd);
+  padding:3px 9px;cursor:pointer;border-radius:2px}
+.tb button:active{background:#bbb}
+.tb .sep{width:1px;height:18px;background:#999;margin:0 4px}
+.tb label{font-size:11px;color:#333}
+kbd{border:1px solid #999;border-bottom-width:2px;border-radius:3px;padding:0 3px;font-size:10px;background:#fff}
+</style>
+</head>
+<body>
+<div id="bar"><span class="apple">&#63743;</span><b>LisaCalc 3.0</b>
+  <span class="men"><span>File</span><span>Edit</span><span>Calc</span><span>Format</span></span>
+  <span class="sub">Apple Lisa · 1984 homage</span></div>
+
+<div class="tb">
+  <button id="new">New</button><button id="save">Save</button><button id="load">Load</button>
+  <span class="sep"></span>
+  <button id="csv">Export CSV</button><button id="imp">Import</button>
+  <span class="sep"></span>
+  <button id="undo">Undo</button><button id="redo">Redo</button>
+  <span class="sep"></span>
+  <button id="sum">&#931; Sum</button><button id="avg">&#8960; Avg</button>
+  <span class="sep"></span>
+  <label>Cell <kbd>F2</kbd> edit · <kbd>&#8593;&#8595;&#8592;&#8594;</kbd> move · <kbd>Shift</kbd>+move select · <kbd>Del</kbd> clear · <kbd>Ctrl</kbd>+<kbd>C</kbd>/<kbd>V</kbd></label>
+  <input type="file" id="file" accept=".csv,.txt" style="display:none">
+</div>
+
+<div id="formula"><div id="cell">A1</div><input id="fx" spellcheck="false" placeholder="value, text, or =formula  (try =SUM(A1:A5), =IF(A1>10,&quot;big&quot;,&quot;small&quot;), =A1*B1)"><button class="fb" id="ok" title="Commit">&#10003;</button><button class="fb" id="no" title="Cancel">&#10007;</button></div>
+
+<div id="wrap"><table id="grid"></table></div>
+
+<div id="status"><span class="calc" id="stat"></span><span class="msg" id="msg">Type in a cell, or use the formula bar. Formulas begin with =</span></div>
+
+<script>
+"use strict";
+/* ==================== sheet model ==================== */
+const COLS=26, ROWS=80;
+const DEFW=100;
+let D={};                       // "A1" -> raw string
+let colW={};                    // colIdx -> px
+let undoStack=[], redoStack=[];
+const colIdx=s=>{let n=0;for(const ch of s)n=n*26+(ch.charCodeAt(0)-64);return n-1;};
+const colName=c=>{let s='';c++;while(c>0){const m=(c-1)%26;s=String.fromCharCode(65+m)+s;c=(c-1-m)/26;}return s;};
+const K=(c,r)=>colName(c)+(r+1);
+const parseKey=k=>{const m=/^([A-Z]+)(\d+)$/.exec(k);return m?{c:colIdx(m[1]),r:+m[2]-1}:null;};
+
+/* ==================== formula engine ==================== */
+const astCache=new Map();
+function tokenize(src){
+  const t=[];let i=0;
+  const isD=c=>c>='0'&&c<='9';
+  while(i<src.length){
+    const c=src[i];
+    if(c===' '||c==='\t'){i++;continue;}
+    if(isD(c)||(c==='.'&&isD(src[i+1]||''))){
+      let j=i;while(j<src.length&&(isD(src[j])||src[j]==='.'))j++;
+      t.push({t:'num',v:parseFloat(src.slice(i,j))});i=j;continue;}
+    if(c==='"'||c==="'"){
+      const q=c;let j=i+1,s='';
+      while(j<src.length&&src[j]!==q){s+=src[j++];}
+      if(src[j]!==q)throw{err:'#VALUE!'};
+      t.push({t:'str',v:s});i=j+1;continue;}
+    if(/[A-Za-z_$]/.test(c)){
+      let j=i;while(j<src.length&&/[A-Za-z0-9_$]/.test(src[j]))j++;
+      t.push({t:'name',v:src.slice(i,j)});i=j;continue;}
+    if(c==='<'){ if(src[i+1]==='='){t.push({t:'op',v:'<='});i+=2;continue;}
+      if(src[i+1]==='>'){t.push({t:'op',v:'<>'});i+=2;continue;} t.push({t:'op',v:'<'});i++;continue;}
+    if(c==='>'){ if(src[i+1]==='='){t.push({t:'op',v:'>='});i+=2;continue;} t.push({t:'op',v:'>'});i++;continue;}
+    if('+-*/^%(),:&='.includes(c)){t.push({t:'op',v:c});i++;continue;}
+    throw{err:'#NAME?'};
+  }
+  return t;
+}
+function parseFormula(src){
+  if(astCache.has(src))return astCache.get(src);
+  const ts=tokenize(src);let i=0;
+  const peek=()=>ts[i], next=()=>ts[i++];
+  const expect=v=>{const t=next();if(!t||t.v!==v)throw{err:'#NAME?'};};
+  function expr(){let l=concat();
+    while(peek()&&peek().t==='op'&&['=','<>','<','>','<=','>='].includes(peek().v)){const op=next().v;l={cmp:op,a:l,b:concat()};}
+    return l;}
+  function concat(){let l=add();while(peek()&&peek().t==='op'&&peek().v==='&'){next();l={cat:1,a:l,b:add()};}return l;}
+  function add(){let l=mul();
+    while(peek()&&peek().t==='op'&&(peek().v==='+'||peek().v==='-')){const op=next().v;l={bin:op,a:l,b:mul()};}
+    return l;}
+  function mul(){let l=unary();
+    while(peek()&&peek().t==='op'&&(peek().v==='*'||peek().v==='/')){const op=next().v;l={bin:op,a:l,b:unary()};}
+    return l;}
+  function unary(){if(peek()&&peek().t==='op'&&(peek().v==='-'||peek().v==='+')){const op=next().v;return{neg:op==='-',a:unary()};}return power();}
+  function power(){const b=primary();if(peek()&&peek().t==='op'&&peek().v==='^'){next();return{bin:'^',a:b,b:unary()};}return b;}
+  function refOrRange(){
+    const t=next(); if(!t||t.t!=='name')throw{err:'#NAME?'};
+    const m=/^\$?([A-Za-z]+)\$?(\d+)$/.exec(t.v); if(!m)throw{err:'#NAME?'};
+    const c1=colIdx(m[1].toUpperCase()), r1=+m[2]-1;
+    if(peek()&&peek().t==='op'&&peek().v===':'){
+      next();const t2=next();const m2=t2&&/^\$?([A-Za-z]+)\$?(\d+)$/.exec(t2.v);
+      if(!m2)throw{err:'#REF!'};
+      return{range:[c1,r1,colIdx(m2[1].toUpperCase()),+m2[2]-1]};}
+    return{ref:c1,r:r1};
+  }
+  function primary(){
+    const t=next(); if(!t)throw{err:'#NAME?'};
+    if(t.t==='num')return{num:t.v};
+    if(t.t==='str')return{str:t.v};
+    if(t.t==='op'&&t.v==='('){const e=expr();expect(')');return e;}
+    if(t.t==='name'){
+      if(peek()&&peek().t==='op'&&peek().v==='('){
+        next();const args=[];
+        if(!(peek()&&peek().t==='op'&&peek().v===')')){
+          args.push(arg());
+          while(peek()&&peek().t==='op'&&peek().v===','){next();args.push(arg());}}
+        expect(')');return{fn:t.v.toUpperCase(),args};}
+      // bare TRUE / FALSE
+      const u=t.v.toUpperCase();
+      if(u==='TRUE')return{num:1}; if(u==='FALSE')return{num:0};
+      const m=/^\$?([A-Za-z]+)\$?(\d+)$/.exec(t.v); if(!m)throw{err:'#NAME?'};
+      const c1=colIdx(m[1].toUpperCase()), r1=+m[2]-1;
+      if(peek()&&peek().t==='op'&&peek().v===':'){
+        next();const t2=next();const m2=t2&&/^\$?([A-Za-z]+)\$?(\d+)$/.exec(t2.v);
+        if(!m2)throw{err:'#REF!'};
+        return{range:[c1,r1,colIdx(m2[1].toUpperCase()),+m2[2]-1]};}
+      return{ref:c1,r:r1};
+    }
+    throw{err:'#NAME?'};
+  }
+  function arg(){
+    // a bare range is a valid argument; otherwise a full expression
+    const save=i;
+    const t=peek();
+    if(t&&t.t==='name'&&ts[i+1]&&ts[i+1].t==='op'&&(ts[i+1].v===':'||ts[i+1].v===','||ts[i+1].v===')')){
+      return refOrRange();
+    }
+    i=save;
+    return expr();
+  }
+  const ast=expr();
+  if(i<ts.length)throw{err:'#NAME?'};
+  if(astCache.size>800)astCache.clear();
+  astCache.set(src,ast);
+  return ast;
+}
+/* --- value helpers --- */
+const ERR=e=>({__err:e});
+const isErr=v=>v&&v.__err;
+function toNum(v){
+  if(typeof v==='number')return v;
+  if(typeof v==='boolean')return v?1:0;
+  if(v===null||v===undefined||v==='')return 0;
+  if(typeof v==='string'){const n=Number(v.trim());return Number.isNaN(n)?NaN:n;}
+  return NaN;
+}
+function toStr(v){ if(isErr(v))throw v; if(typeof v==='boolean')return v?'TRUE':'FALSE'; if(v===null||v===undefined)return ''; return String(v); }
+function num(v){ const n=toNum(v); if(Number.isNaN(n))throw{err:'#VALUE!'}; return n; }
+
+function parse(raw){ return parseFormula(String(raw).replace(/^=/,'').replace(/^@/,'')); }
+
+function cellValue(c,r,ctx){
+  if(c<0||c>=COLS||r<0||r>=ROWS)throw{err:'#REF!'};
+  const k=K(c,r);
+  if(ctx.cache.has(k))return ctx.cache.get(k);
+  const raw=D[k];
+  if(raw==null||raw==='')return 0;
+  if(String(raw)[0]!=='='){
+    const s=String(raw);
+    const n=/^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(s.trim())?Number(s):s;
+    return n;
+  }
+  if(ctx.visiting.has(k))throw{err:'#CYCLE!'};
+  ctx.visiting.add(k);
+  let v;
+  try{ v=evalAst(parse(raw),ctx); }
+  finally{ ctx.visiting.delete(k); }
+  ctx.cache.set(k,v);
+  return v;
+}
+function rangeValues(c1,r1,c2,r2,ctx){
+  const out=[];
+  const cs=Math.min(c1,c2),ce=Math.max(c1,c2),rs=Math.min(r1,r2),re=Math.max(r1,r2);
+  for(let r=rs;r<=re;r++)for(let c=cs;c<=ce;c++)out.push({k:K(c,r),v:cellValue(c,r,ctx)});
+  return out;
+}
+function argsOf(a,ctx){
+  if(a&&a.range)return rangeValues(a.range[0],a.range[1],a.range[2],a.range[3],ctx).map(x=>x.v);
+  return [evalAst(a,ctx)];
+}
+const FUNCS={
+  SUM:(a)=>a.filter(v=>typeof v==='number').reduce((x,y)=>x+y,0),
+  AVERAGE:(a)=>{const n=a.filter(v=>typeof v==='number');if(!n.length)throw{err:'#DIV/0!'};return n.reduce((x,y)=>x+y,0)/n.length;},
+  MIN:(a)=>{const n=a.filter(v=>typeof v==='number');if(!n.length)return 0;return Math.min(...n);},
+  MAX:(a)=>{const n=a.filter(v=>typeof v==='number');if(!n.length)return 0;return Math.max(...n);},
+  COUNT:(a)=>a.filter(v=>typeof v==='number').length,
+  COUNTA:(a)=>a.filter(v=>v!==''&&v!==null&&v!==undefined).length,
+  PRODUCT:(a)=>{const n=a.filter(v=>typeof v==='number');if(!n.length)return 0;return n.reduce((x,y)=>x*y,1);},
+  ABS:(a)=>Math.abs(num(a[0])),
+  SQRT:(a)=>{const v=num(a[0]);if(v<0)throw{err:'#VALUE!'};return Math.sqrt(v);},
+  INT:(a)=>Math.floor(num(a[0])),
+  ROUND:(a)=>{const v=num(a[0]),d=a.length>1?Math.trunc(num(a[1])):0,p=Math.pow(10,d);return Math.round(v*p)/p;},
+  LEN:(a)=>toStr(a[0]).length,
+  UPPER:(a)=>toStr(a[0]).toUpperCase(),
+  LOWER:(a)=>toStr(a[0]).toLowerCase(),
+  TRIM:(a)=>toStr(a[0]).trim(),
+  IF:(a)=>{const c=a[0];const truth=isErr(c)?false:(typeof c==='string'?(c!==''&&c.toUpperCase()!=='FALSE'):toNum(c)!==0);return truth?(a.length>1?a[1]:1):(a.length>2?a[2]:0);},
+  IFERROR:(a)=>{try{return a[0];}catch(e){return a.length>1?a[1]:'';}},
+  AND:(a)=>a.every(v=>toNum(v)!==0)?1:0,
+  OR:(a)=>a.some(v=>toNum(v)!==0)?1:0,
+  NOT:(a)=>toNum(a[0])===0?1:0,
+  TODAY:(a)=>new Date().toISOString().slice(0,10),
+  PI:(a)=>Math.PI
+};
+function evalAst(a,ctx){
+  if(a==null)throw{err:'#NAME?'};
+  if(a.num!==undefined)return a.num;
+  if(a.str!==undefined)return a.str;
+  if(a.cat){const L=evalAst(a.a,ctx),R=evalAst(a.b,ctx);return toStr(isErr(L)?'':L)+toStr(isErr(R)?'':R);}
+  if(a.neg!==undefined){const v=num(evalAst(a.a,ctx));return a.neg?-v:v;}
+  if(a.bin){
+    const L=num(evalAst(a.a,ctx)),R=num(evalAst(a.b,ctx));
+    switch(a.bin){
+      case '+':return L+R; case '-':return L-R; case '*':return L*R;
+      case '/':if(R===0)throw{err:'#DIV/0!'};return L/R;
+      case '^':return Math.pow(L,R);
+    }}
+  if(a.cmp){
+    const L=evalAst(a.a,ctx),R=evalAst(a.b,ctx);
+    let x,y;
+    const lnum=typeof L==='number'||(typeof L==='string'&&L.trim()!==''&&!Number.isNaN(Number(L)));
+    const rnum=typeof R==='number'||(typeof R==='string'&&R.trim()!==''&&!Number.isNaN(Number(R)));
+    if(lnum&&rnum){x=toNum(L);y=toNum(R);}else{x=toStr(L).toLowerCase();y=toStr(R).toLowerCase();}
+    switch(a.cmp){case '=':return x===y?1:0;case '<>':return x!==y?1:0;
+      case '<':return x<y?1:0;case '>':return x>y?1:0;case '<=':return x<=y?1:0;case '>=':return x>=y?1:0;}
+  }
+  if(a.range){
+    const vals=rangeValues(a.range[0],a.range[1],a.range[2],a.range[3],ctx).map(x=>x.v);
+    if(vals.length===1)return vals[0];
+    throw{err:'#VALUE!'};
+  }
+  if(a.ref!==undefined)return cellValue(a.ref,a.r,ctx);
+  if(a.fn){
+    const f=FUNCS[a.fn];
+    if(!f)throw{err:'#NAME?'};
+    if(a.fn==='IF'){
+      // lazy: only evaluate the chosen branch
+      const cond=evalAst(a.args[0],ctx);
+      const truth=isErr(cond)?false:(typeof cond==='string'?(cond!==''&&cond.toUpperCase()!=='FALSE'):toNum(cond)!==0);
+      if(truth)return a.args.length>1?evalAst(a.args[1],ctx):1;
+      return a.args.length>2?evalAst(a.args[2],ctx):0;
+    }
+    if(a.fn==='IFERROR'){
+      try{return evalAst(a.args[0],ctx);}catch(e){return a.args.length>1?evalAst(a.args[1],ctx):'';}
+    }
+    const vals=[];
+    for(const arg of a.args)vals.push(...argsOf(arg,ctx));
+    return f(vals);
+  }
+  throw{err:'#NAME?'};
+}
+/* ==================== display ==================== */
+function fmt(v){
+  if(isErr(v))return v.__err;
+  if(typeof v==='string')return v;
+  if(typeof v==='boolean')return v?'TRUE':'FALSE';
+  if(typeof v!=='number'||!isFinite(v))return '#VALUE!';
+  if(Number.isInteger(v))return String(v);
+  const a=Math.abs(v);
+  if(a!==0&&(a<1e-6||a>=1e12))return v.toExponential(5);
+  return String(Math.round(v*1e6)/1e6);
+}
+/* ==================== grid UI ==================== */
+const grid=document.getElementById('grid');
+const wrap=document.getElementById('wrap');
+let cellEls=new Map();       // "A1" -> td
+let sel={c:0,r:0}, anchor={c:0,r:0};
+let editing=null;
+function inRange(c,r){const c1=Math.min(anchor.c,sel.c),c2=Math.max(anchor.c,sel.c),
+  r1=Math.min(anchor.r,sel.r),r2=Math.max(anchor.r,sel.r);return c>=c1&&c<=c2&&r>=r1&&r<=r2;}
+function build(){
+  grid.innerHTML='';
+  const cg=document.createElement('colgroup');
+  const c0=document.createElement('col');c0.style.width='40px';cg.appendChild(c0);
+  for(let c=0;c<COLS;c++){const cl=document.createElement('col');cl.style.width=(colW[c]||DEFW)+'px';cg.appendChild(cl);}
+  grid.appendChild(cg);
+  const thead=document.createElement('thead');const hr=document.createElement('tr');
+  const ch=document.createElement('th');ch.className='corner';hr.appendChild(ch);
+  for(let c=0;c<COLS;c++){const th=document.createElement('th');th.textContent=colName(c);
+    th.dataset.col=c;
+    const rz=document.createElement('div');rz.className='rz';th.appendChild(rz);
+    hr.appendChild(th);}
+  thead.appendChild(hr);grid.appendChild(thead);
+  const tb=document.createElement('tbody');
+  for(let r=0;r<ROWS;r++){
+    const tr=document.createElement('tr');
+    const th=document.createElement('th');th.textContent=r+1;th.dataset.row=r;tr.appendChild(th);
+    for(let c=0;c<COLS;c++){
+      const td=document.createElement('td');td.dataset.c=c;td.dataset.r=r;
+      cellEls.set(K(c,r),td);tr.appendChild(td);}
+    tb.appendChild(tr);}
+  grid.appendChild(tb);
+  grid.style.width=(40+Array.from({length:COLS},(_,c)=>colW[c]||DEFW).reduce((a,b)=>a+b,0))+'px';
+}
+function refresh(){
+  const ctx={cache:new Map(),visiting:new Set()};
+  for(const [k,td] of cellEls){
+    const raw=D[k];
+    if(raw==null||raw===''){td.textContent='';td.classList.remove('err','num');continue;}
+    if(String(raw)[0]!=='='){
+      td.textContent=String(raw);td.classList.remove('err');
+      td.classList.toggle('num',typeof cellValue(parseKey(k).c,parseKey(k).r,ctx)==='number'&&/^-?\d/.test(String(raw).trim()));
+      continue;}
+    const p=parseKey(k);
+    try{const v=cellValue(p.c,p.r,ctx);td.textContent=fmt(v);td.classList.remove('err');td.classList.toggle('num',typeof v==='number');}
+    catch(e){td.textContent=(e&&e.err)||'#ERROR';td.classList.add('err');td.classList.remove('num');}
+  }
+  updateBar();paint();updateStatus();
+}
+function paint(){
+  for(const [k,td] of cellEls){
+    const p=parseKey(k);
+    td.classList.toggle('sel',p.c===sel.c&&p.r===sel.r);
+    td.classList.toggle('rng',inRange(p.c,p.r)&&!(p.c===sel.c&&p.r===sel.r));
+  }
+  document.getElementById('cell').textContent=K(sel.c,sel.r);
+}
+function updateBar(){ if(!editing)document.getElementById('fx').value=D[K(sel.c,sel.r)]||''; }
+function selectedKeys(){
+  const c1=Math.min(anchor.c,sel.c),c2=Math.max(anchor.c,sel.c),
+        r1=Math.min(anchor.r,sel.r),r2=Math.max(anchor.r,sel.r),out=[];
+  for(let r=r1;r<=r2;r++)for(let c=c1;c<=c2;c++)out.push(K(c,r));
+  return out;
+}
+function updateStatus(){
+  const keys=selectedKeys();const ctx={cache:new Map(),visiting:new Set()};
+  let sum=0,cnt=0;
+  for(const k of keys){
+    const p=parseKey(k);if(!p)continue;
+    try{const v=cellValue(p.c,p.r,ctx);if(typeof v==='number'){sum+=v;cnt++;}}catch(e){}
+  }
+  const st=document.getElementById('stat');
+  if(keys.length>1)st.textContent=`Sum: ${fmt(sum)}   Avg: ${cnt?fmt(sum/cnt):'—'}   Count: ${cnt}   (${keys.length} cells)`;
+  else st.textContent='Ready';
+}
+function setMsg(s){document.getElementById('msg').textContent=s;}
+/* --- selection & navigation --- */
+function move(dc,dr,extend){
+  commitEdit(true,true);
+  sel={c:Math.max(0,Math.min(COLS-1,sel.c+dc)),r:Math.max(0,Math.min(ROWS-1,sel.r+dr))};
+  if(!extend)anchor={...sel};
+  ensureVisible();updateBar();paint();updateStatus();
+}
+function selectCell(c,r,extend){
+  sel={c:Math.max(0,Math.min(COLS-1,c)),r:Math.max(0,Math.min(ROWS-1,r))};
+  if(!extend)anchor={...sel};
+  ensureVisible();updateBar();paint();updateStatus();
+}
+function ensureVisible(){
+  const td=cellEls.get(K(sel.c,sel.r));if(!td)return;
+  const r=td.getBoundingClientRect(),w=wrap.getBoundingClientRect();
+  if(r.top<w.top+24)wrap.scrollTop-= (w.top+24-r.top);
+  else if(r.bottom>w.bottom)wrap.scrollTop+= (r.bottom-w.bottom);
+  if(r.left<w.left+40)wrap.scrollLeft-=(w.left+40-r.left);
+  else if(r.right>w.right)wrap.scrollLeft+=(r.right-w.right);
+}
+/* --- editing --- */
+function beginEdit(seed){
+  if(editing)commitEdit(true,true);
+  const k=K(sel.c,sel.r),td=cellEls.get(k);
+  const inp=document.createElement('input');
+  inp.className='cellin';inp.spellcheck=false;
+  inp.value=seed!==undefined?seed:(D[k]||'');
+  td.textContent='';td.classList.add('editing');td.appendChild(inp);
+  editing={k,td,inp,orig:D[k]};
+  inp.focus();
+  if(seed!==undefined)inp.setSelectionRange(inp.value.length,inp.value.length);
+  else inp.select();
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){e.preventDefault();commitEdit(true);move(0,1,false);}
+    else if(e.key==='Tab'){e.preventDefault();commitEdit(true);move(1,0,false);}
+    else if(e.key==='Escape'){e.preventDefault();commitEdit(false);}
+    else if(e.key==='ArrowDown'&&!e.shiftKey){e.preventDefault();commitEdit(true);move(0,1,false);}
+    else if(e.key==='ArrowUp'&&!e.shiftKey){e.preventDefault();commitEdit(true);move(0,-1,false);}
+    e.stopPropagation();
+  });
+  inp.addEventListener('input',()=>{document.getElementById('fx').value=inp.value;});
+  inp.addEventListener('blur',()=>{ if(editing&&editing.inp===inp)commitEdit(true); });
+}
+function commitEdit(save,silent){
+  if(!editing)return;
+  const {k,inp,td,orig}=editing;editing=null;
+  const val=inp.value;
+  inp.remove();td.classList.remove('editing');
+  if(save&&val!==(orig||'')){
+    pushUndo();
+    if(val==='')delete D[k];else D[k]=val;
+  }
+  if(silent){ // caller will repaint
+    refresh();
+  }else refresh();
+}
+/* --- undo --- */
+function pushUndo(){undoStack.push(JSON.stringify(D));if(undoStack.length>120)undoStack.shift();redoStack.length=0;}
+function doUndo(){if(!undoStack.length)return;redoStack.push(JSON.stringify(D));D=JSON.parse(undoStack.pop());refresh();setMsg('Undo');}
+function doRedo(){if(!redoStack.length)return;undoStack.push(JSON.stringify(D));D=JSON.parse(redoStack.pop());refresh();setMsg('Redo');}
+/* --- mouse --- */
+let dragging=false;
+grid.addEventListener('mousedown',e=>{
+  const th=e.target.closest('th');
+  if(th&&th.dataset.col!==undefined){ // select column
+    const c=+th.dataset.col;anchor={c,r:0};sel={c,r:ROWS-1};commitEdit(true,true);paint();updateBar();updateStatus();return;}
+  if(th&&th.dataset.row!==undefined){
+    const r=+th.dataset.row;anchor={c:0,r};sel={c:COLS-1,r};commitEdit(true,true);paint();updateBar();updateStatus();return;}
+  const td=e.target.closest('td');if(!td)return;
+  if(e.target.classList.contains('cellin'))return;
+  commitEdit(true,true);
+  const c=+td.dataset.c,r=+td.dataset.r;
+  if(e.shiftKey)selectCell(c,r,true);else selectCell(c,r,false);
+  dragging=true;e.preventDefault();
+});
+grid.addEventListener('mousemove',e=>{ if(!dragging)return;
+  const td=e.target.closest('td');if(!td)return;
+  selectCell(+td.dataset.c,+td.dataset.r,true);});
+window.addEventListener('mouseup',()=>{dragging=false;});
+grid.addEventListener('dblclick',e=>{const td=e.target.closest('td');if(!td)return;
+  selectCell(+td.dataset.c,+td.dataset.r,false);beginEdit();});
+/* column resize */
+let rzCol=null,rzX=0,rzW=0;
+grid.addEventListener('mousedown',e=>{
+  if(!e.target.classList.contains('rz'))return;
+  rzCol=+e.target.parentElement.dataset.col;rzX=e.clientX;rzW=colW[rzCol]||DEFW;
+  e.preventDefault();e.stopPropagation();
+});
+window.addEventListener('mousemove',e=>{ if(rzCol===null)return;
+  const w=Math.max(36,rzW+(e.clientX-rzX));colW[rzCol]=w;
+  const cols=grid.querySelectorAll('colgroup col');cols[rzCol+1].style.width=w+'px';
+  grid.style.width=(40+Array.from({length:COLS},(_,c)=>colW[c]||DEFW).reduce((a,b)=>a+b,0))+'px';});
+window.addEventListener('mouseup',()=>{rzCol=null;});
+/* --- keyboard --- */
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'&&e.target.id==='fx')return;
+  if(editing)return;
+  const ctrl=e.ctrlKey||e.metaKey;
+  if(ctrl&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?doRedo():doUndo();return;}
+  if(ctrl&&e.key.toLowerCase()==='y'){e.preventDefault();doRedo();return;}
+  if(ctrl&&e.key.toLowerCase()==='s'){e.preventDefault();doSave();return;}
+  if(e.key==='F2'){e.preventDefault();beginEdit();return;}
+  if(e.key==='Delete'||e.key==='Backspace'){
+    e.preventDefault();pushUndo();
+    for(const k of selectedKeys())delete D[k];
+    refresh();return;}
+  if(e.key==='Enter'){e.preventDefault();beginEdit();return;}
+  if(e.key==='Tab'){e.preventDefault();move(e.shiftKey?-1:1,0,false);return;}
+  const map={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0]};
+  if(map[e.key]){e.preventDefault();move(map[e.key][0],map[e.key][1],e.shiftKey);return;}
+  if(e.key==='Home'){e.preventDefault();selectCell(0,sel.r,false);return;}
+  if(e.key==='End'){e.preventDefault();selectCell(COLS-1,sel.r,false);return;}
+  if(e.key==='PageDown'){e.preventDefault();move(0,20,e.shiftKey);return;}
+  if(e.key==='PageUp'){e.preventDefault();move(0,-20,e.shiftKey);return;}
+  if(e.key.length===1&&!ctrl&&!e.altKey){e.preventDefault();beginEdit(e.key);return;}
+});
+/* formula bar */
+const fx=document.getElementById('fx');
+fx.addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();const v=fx.value;pushUndo();if(v==='')delete D[K(sel.c,sel.r)];else D[K(sel.c,sel.r)]=v;refresh();move(0,1,false);}
+  else if(e.key==='Escape'){e.preventDefault();fx.value=D[K(sel.c,sel.r)]||'';fx.blur();}
+  e.stopPropagation();
+});
+document.getElementById('ok').onclick=()=>{const v=fx.value;pushUndo();if(v==='')delete D[K(sel.c,sel.r)];else D[K(sel.c,sel.r)]=v;refresh();};
+document.getElementById('no').onclick=()=>{fx.value=D[K(sel.c,sel.r)]||'';};
+/* clipboard */
+document.addEventListener('copy',e=>{ if(editing)return;
+  const c1=Math.min(anchor.c,sel.c),c2=Math.max(anchor.c,sel.c),
+        r1=Math.min(anchor.r,sel.r),r2=Math.max(anchor.r,sel.r),rows=[];
+  for(let r=r1;r<=r2;r++){const row=[];for(let c=c1;c<=c2;c++){
+    const raw=D[K(c,r)];if(raw==null){row.push('');continue;}
+    try{const v=cellValue(c,r,{cache:new Map(),visiting:new Set()});row.push(String(raw)[0]==='='?String(raw):fmt(v));}
+    catch(err){row.push(err.err||'#ERR');}}
+    rows.push(row.join('\t'));}
+  e.clipboardData.setData('text/plain',rows.join('\n'));e.preventDefault();setMsg('Copied '+((r2-r1+1)*(c2-c1+1))+' cells');});
+document.addEventListener('paste',e=>{ if(editing)return;
+  const txt=(e.clipboardData||window.clipboardData).getData('text/plain');if(!txt)return;
+  e.preventDefault();pushUndo();
+  const rows=txt.replace(/\r/g,'').split('\n');
+  rows.forEach((line,ri)=>{ if(line===''&&rows.length===1)return;
+    line.split('\t').forEach((cell,ci)=>{const c=sel.c+ci,r=sel.r+ri;
+      if(c<COLS&&r<ROWS){const k=K(c,r);if(cell==='')delete D[k];else D[k]=cell;}});});
+  refresh();setMsg('Pasted');});
+/* --- toolbar --- */
+function snapshot(){return JSON.stringify(D);}
+function doSave(){localStorage.setItem('lisacalc.v2',snapshot());setMsg('Saved to this browser');}
+function doLoad(){const s=localStorage.getItem('lisacalc.v2');if(!s){setMsg('Nothing saved yet');return;}
+  pushUndo();D=JSON.parse(s);refresh();setMsg('Loaded');}
+function doNew(){if(Object.keys(D).length&&!confirm('Start a new empty sheet? Unsaved data will be lost.'))return;
+  pushUndo();D={};refresh();setMsg('New sheet');}
+function doCSV(){let out=[];
+  for(let r=0;r<ROWS;r++){let empty=true,row=[];
+    for(let c=0;c<COLS;c++){const k=K(c,r);const raw=D[k];
+      if(raw!=null&&raw!=='')empty=false;
+      let txt='';
+      if(raw!=null){if(String(raw)[0]==='='){try{txt=fmt(cellValue(c,r,{cache:new Map(),visiting:new Set()}));}catch(e){txt=e.err||'#ERR';}}else txt=String(raw);}
+      row.push('"'+txt.replace(/"/g,'""')+'"');}
+    if(!empty)out.push(row.join(','));}
+  download('lisacalc.csv',out.join('\n'),'text/csv');setMsg('Exported CSV');}
+function download(name,data,mime){const a=document.createElement('a');a.download=name;
+  a.href=URL.createObjectURL(new Blob([data],{type:mime}));a.click();}
+document.getElementById('imp').onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{pushUndo();D={};let r=0;
+    rd.result.replace(/\r/g,'').split('\n').forEach(line=>{
+      if(line==='')return;const cells=parseCSVLine(line);
+      cells.forEach((v,c)=>{if(c<COLS&&r<ROWS&&v!=='')D[K(c,r)]=v;});r++;});
+    refresh();setMsg('Imported '+f.name);};
+  rd.readAsText(f);e.target.value='';};
+function parseCSVLine(line){
+  const out=[];let cur='',q=false;
+  for(let i=0;i<line.length;i++){const ch=line[i];
+    if(q){ if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false;} else cur+=ch;}
+    else{ if(ch==='"')q=true; else if(ch===','){out.push(cur);cur='';} else cur+=ch;}}
+  out.push(cur);return out;
+}
+document.getElementById('new').onclick=doNew;
+document.getElementById('save').onclick=doSave;
+document.getElementById('load').onclick=doLoad;
+document.getElementById('csv').onclick=doCSV;
+document.getElementById('undo').onclick=doUndo;
+document.getElementById('redo').onclick=doRedo;
+function quickFn(name){
+  const keys=selectedKeys();
+  let target=K(sel.c,sel.r);
+  let cc=sel.c,rr=sel.r;
+  if(keys.length>1){rr=Math.max(anchor.r,sel.r)+1;target=K(Math.min(anchor.c,sel.c),rr);}
+  else{rr=rr+1;target=K(cc,rr);}
+  const c1=colName(Math.min(anchor.c,sel.c)),c2=colName(Math.max(anchor.c,sel.c)),
+        r1=Math.min(anchor.r,sel.r)+1,r2=Math.max(anchor.r,sel.r)+1;
+  pushUndo();
+  D[target]=keys.length>1?`=${name}(${c1}${r1}:${c2}${r2})`:`=${name}(${c1}${r1})`;
+  selectCell(Math.min(anchor.c,sel.c),rr,false);
+  refresh();setMsg(name+' inserted in '+target);}
+document.getElementById('sum').onclick=()=>quickFn('SUM');
+document.getElementById('avg').onclick=()=>quickFn('AVERAGE');
+/* ==================== boot ==================== */
+function demo(){
+  D={};
+  D['A1']='=== 1984 Budget (example) ===';
+  D['A3']='Item';D['B3']='Qty';D['C3']='Price';D['D3']='Total';
+  const rows=[['Floppy disks',10,3.5],['Printer ribbon',2,12],['Chocolate',7,1.25],['Lisa mouse',1,145]];
+  rows.forEach((row,i)=>{const r=4+i;D[K(0,r)]=String(row[0]);D[K(1,r)]=String(row[1]);D[K(2,r)]=String(row[2]);D[K(3,r)]=`=B${r+1}*C${r+1}`;});
+  D['A9']='Subtotal';D['D9']='=SUM(D4:D7)';
+  D['A10']='Tax 6%';D['D10']='=ROUND(D9*0.06,2)';
+  D['A11']='TOTAL';D['D11']='=D9+D10';
+  D['A13']='Formula examples:';D['A14']='=IF(D11>200,"over budget","ok")';D['A15']='Average price';D['B15']='=AVERAGE(C4:C7)';
+}
+if(!localStorage.getItem('lisacalc.v2')){demo();}
+else try{ D=JSON.parse(localStorage.getItem('lisacalc.v2'))||{}; }catch(e){ demo(); }
+build();refresh();setMsg('Ready — click a cell and type. Try the Σ Sum button on column D.');
+</script>
+</body>
+</html>

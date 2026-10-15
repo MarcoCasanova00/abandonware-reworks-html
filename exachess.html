@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ExaChess Lite — Homage (1996)</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#555;font-family:Geneva,Chicago,Verdana,sans-serif}
+#bar{height:30px;background:linear-gradient(#fff,#ddd);border-bottom:2px solid #000;display:flex;align-items:center;font-weight:bold;font-size:14px;padding:0 12px;gap:14px}
+#main{display:flex;height:calc(100% - 30px);max-width:1100px;margin:0 auto}
+#left{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;background:#777}
+#board{border:6px double #4a2f18;outline:3px solid #2a1a0c;box-shadow:8px 8px 0 rgba(0,0,0,.55),inset 0 0 30px rgba(0,0,0,.25);display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:min(100%,560px);aspect-ratio:1;user-select:none;background:#3a2410}
+.sq{display:flex;align-items:center;justify-content:center;font-size:clamp(24px,7vmin,46px);cursor:pointer;position:relative;overflow:hidden}
+.sq.l{background:linear-gradient(135deg,#f0d3a0,#e3b96f)}.sq.d{background:linear-gradient(135deg,#9a5f30,#7a4520)}
+.sq span.pc{font-family:Georgia,'Times New Roman',serif;line-height:1;pointer-events:none}
+.sq span.coord{position:absolute;font-size:9px;font-family:Geneva,Verdana,sans-serif;pointer-events:none;opacity:.85}
+.sq.l span.coord{color:#7a4520}.sq.d span.coord{color:#f0d3a0}
+.sq.l{background:#f0d9b5}.sq.d{background:#b58863}
+.sq.sel{outline:3px solid #ff0;outline-offset:-3px}
+.sq.mv::after{content:"";position:absolute;width:26%;height:26%;border-radius:50%;background:rgba(0,128,0,.55)}
+.sq.cap::after{content:"";position:absolute;inset:6%;border:4px solid rgba(200,0,0,.6);border-radius:50%}
+.sq.last{background:#f7ec59 !important}
+#panel{width:330px;background:#eee;border-left:2px solid #000;overflow-y:auto;font-size:12px;padding:8px}
+#panel h3{background:#000;color:#fff;font-size:12px;margin:8px 0 4px;padding:3px 6px}
+button{font-family:inherit;border:2px outset #fff;background:#e4e4e4;padding:4px 8px;cursor:pointer;margin:2px;font-size:12px}
+button:active{border-style:inset}button.primary{background:#000;color:#ff0;font-weight:bold}
+select,input,textarea{font-family:inherit;font-size:12px;width:100%;margin:2px 0}
+#moves{background:#fff;border:2px inset #fff;height:150px;overflow-y:auto;padding:4px;font-family:monospace;white-space:pre-wrap}
+#status{background:#000;color:#0f0;padding:4px 6px;font-size:12px;margin-bottom:4px}
+@media(max-width:820px){#main{flex-direction:column}#panel{width:100%;border-left:none;border-top:2px solid #000}}
+</style>
+</head>
+<body>
+<div id="bar"><span></span><span>File</span><span>Edit</span><span><u>ExaChess Lite</u></span><span style="margin-left:auto;font-weight:normal">Rolf Exner • Exant 1996 homage</span></div>
+<div id="main">
+<div id="left"><div id="board"></div></div>
+<div id="panel">
+<div id="status">White to move</div>
+<h3>▶ Game / Database</h3>
+<select id="dblist"></select>
+<div>
+<button id="prev">◀ Prev</button><button id="next">Next ▶</button>
+<button id="start0">|◀ Start</button><button id="live" class="primary">♞ Live game</button>
+</div>
+<h3>♟ Play vs computer</h3>
+<div>
+<button id="newW" class="primary">New (you White)</button><button id="newB">New (you Black)</button>
+<label>Strength <span id="depthv">2</span></label>
+<input type="range" id="depth" min="1" max="3" value="2">
+<button id="hint">💡 Hint</button><button id="flip">🔄 Flip</button>
+</div>
+<h3>📝 Moves / annotate</h3>
+<div id="moves"></div>
+<input id="cmt" placeholder="annotation for current move (Enter)">
+<div>
+<button id="pgnExp">⬇ Export PGN</button><button id="pgnImp">⬆ Import PGN</button>
+<button id="save">💾 Save</button><button id="load">📂 Load</button>
+</div>
+<textarea id="pgnbox" rows="3" placeholder="PGN in/out"></textarea>
+<p style="font-size:11px">Homage to ExaChess Lite (freeware DB): replay famous games, step through, play engine, annotate, PGN round-trip. Full rules incl. castling / en-passant / promotion.</p>
+</div>
+</div>
+<script>
+"use strict";
+// ---------- engine ----------
+// board: 64 array, pieces 'P N B R Q K p n b r q k', '' empty. turn 'w'|'b'.
+// castling rights {K,Q,k,q}, ep square index or -1, half/full move.
+let B, turn, cast, ep, half, full, hist=[], redo_=[];
+const PIECES={P:100,N:320,B:330,R:500,Q:900,K:0,p:-100,n:-320,b:-330,r:-500,q:-900,k:0};
+const PST={ // tiny piece-square tables (pawns/knights/center), mirrored for black
+ P:[0,0,0,0,0,0,0,0,5,10,10,-20,-20,10,10,5,5,-5,-5,0,0,-5,-5,5,0,0,0,20,20,0,0,0,0,0,0,20,20,0,0,0,5,-5,-5,0,0,-5,-5,5,5,10,10,-20,-20,10,10,5,0,0,0,0,0,0,0,0],
+ N:[-50,-40,-30,-30,-30,-30,-40,-50,-40,-20,0,5,5,0,-20,-40,-40,5,10,10,10,10,5,-40,-40,0,10,15,15,10,0,-40,-40,5,15,20,20,15,5,-40,-40,0,10,15,15,10,0,-40,-40,-20,0,0,0,0,-20,-40,-50,-40,-30,-30,-30,-30,-40,-50],
+ K:[-30,-40,-40,-50,-50,-40,-40,-30,-30,-40,-40,-50,-50,-40,-40,-30,-30,-40,-40,-50,-50,-40,-40,-30,-30,-40,-40,-50,-50,-40,-40,-30,-20,-30,-30,-40,-40,-30,-30,-20,-10,-20,-20,-20,-20,-20,-20,-10,20,20,0,0,0,0,20,20,20,30,10,0,0,10,30,20]};
+function idx(r,c){return r*8+c} function RC(i){return [i>>3,i&7]}
+function startPos(){B=new Array(64).fill('');
+ const back=['r','n','b','q','k','b','n','r'];
+ for(let c=0;c<8;c++){B[idx(0,c)]=back[c];B[idx(1,c)]='p';B[idx(6,c)]='P';B[idx(7,c)]=back[c].toUpperCase();}
+ turn='w';cast={K:1,Q:1,k:1,q:1};ep=-1;half=0;full=1;hist=[];redo_=[];}
+function clone(){return {B:B.slice(),turn,cast:{...cast},ep,half,full};}
+function restore(s){B=s.B.slice();turn=s.turn;cast={...s.cast};ep=s.ep;half=s.half;full=s.full;}
+function white(p){return p>='A'&&p<='Z';} function isW(p){return p&&white(p);}
+function inB(r,c){return r>=0&&r<8&&c>=0&&c<8;}
+function attacked(b,sq,byW){
+ const [r,c]=RC(sq);
+ // pawns
+ const pr=byW?r+1:r-1;
+ for(const dc of [-1,1]){if(inB(pr,c+dc)){const p=b[idx(pr,c+dc)];if(p===(byW?'P':'p'))return 1;}}
+ // knights
+ for(const [dr,dc] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){
+  if(!inB(r+dr,c+dc))continue;const p=b[idx(r+dr,c+dc)];
+  if(p===(byW?'N':'n'))return 1;}
+ // sliders
+ const dirs=[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+ for(let d=0;d<8;d++){const [dr,dc]=dirs[d];let rr=r+dr,cc=c+dc;
+  while(inB(rr,cc)){const p=b[idx(rr,cc)];
+   if(p){const w=isW(p),up=p.toUpperCase();
+    if(w===byW){if(d<4&&(up==='R'||up==='Q'))return 1;if(d>=4&&(up==='B'||up==='Q'))return 1;}
+    break;}
+   rr+=dr;cc+=dc;}}
+ // king
+ for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;
+  if(!inB(r+dr,c+dc))continue;const p=b[idx(r+dr,c+dc)];if(p===(byW?'K':'k'))return 1;}
+ return 0;}
+function kingSq(b,w){const k=w?'K':'k';for(let i=0;i<64;i++)if(b[i]===k)return i;return -1;}
+function pseudoMoves(st){
+ // returns [{from,to,promo,ep,castle}]
+ const ms=[];const b=st.B,W=st.turn==='w';
+ for(let i=0;i<64;i++){const p=b[i];if(!p||isW(p)!==W)continue;
+  const [r,c]=RC(i),up=p.toUpperCase();
+  const push=(to,promo,epf,castle)=>ms.push({from:i,to,promo:promo||'',ep:!!epf,castle:castle||''});
+  if(up==='P'){
+   const dir=W?-1:1,start=W?6:1,last=W?0:7;
+   if(inB(r+dir,c)&&!b[idx(r+dir,c)]){
+    if(r+dir===last){for(const q of ['Q','R','B','N'])push(idx(r+dir,c),W?q:q.toLowerCase());}
+    else{push(idx(r+dir,c));
+     if(r===start&&!b[idx(r+2*dir,c)])push(idx(r+2*dir,c));}}
+   for(const dc of [-1,1]){if(!inB(r+dir,c+dc))continue;const t=idx(r+dir,c+dc),tp=b[t];
+    if(tp&&isW(tp)!==W){if(r+dir===last){for(const q of ['Q','R','B','N'])push(t,W?q:q.toLowerCase());}else push(t);}
+    if(t===st.ep)push(t,'',1);}
+  }else if(up==='N'||up==='K'){
+   const J=up==='N'?[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]:[[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+   for(const [dr,dc] of J){if(!inB(r+dr,c+dc))continue;const t=idx(r+dr,c+dc),tp=b[t];
+    if(!tp||isW(tp)!==W)push(t);}
+  }else{
+   const D=up==='R'?[[-1,0],[1,0],[0,-1],[0,1]]:up==='B'?[[-1,-1],[-1,1],[1,-1],[1,1]]:[[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+   for(const [dr,dc] of D){let rr=r+dr,cc=c+dc;
+    while(inB(rr,cc)){const t=idx(rr,cc),tp=b[t];
+     if(!tp)push(t);else{if(isW(tp)!==W)push(t);break;}
+     rr+=dr;cc+=dc;}}
+  }}
+ // castling
+ const home=W?7:0;
+ if(W?st.cast.K:st.cast.k){
+  if(!b[idx(home,5)]&&!b[idx(home,6)]&&b[idx(home,7)]===(W?'R':'r')
+   &&!attacked(b,idx(home,4),!W)&&!attacked(b,idx(home,5),!W))ms.push({from:idx(home,4),to:idx(home,6),promo:'',ep:0,castle:'K'});}
+ if(W?st.cast.Q:st.cast.q){
+  if(!b[idx(home,3)]&&!b[idx(home,2)]&&!b[idx(home,1)]&&b[idx(home,0)]===(W?'R':'r')
+   &&!attacked(b,idx(home,4),!W)&&!attacked(b,idx(home,3),!W))ms.push({from:idx(home,4),to:idx(home,2),promo:'',ep:0,castle:'Q'});}
+ return ms;}
+function legalMoves(st){
+ const out=[];
+ for(const m of pseudoMoves(st)){
+  const s2=doMove(st,m);
+  const ks=kingSq(s2.B,st.turn==='w');
+  if(!attacked(s2.B,ks,st.turn!=='w'))out.push(m);}
+ return out;}
+function doMove(st,m){
+ const b=st.B.slice();const p=b[m.from];
+ let cast2={...st.cast},ep2=-1,half2=st.half+1,full2=st.full;
+ const W=st.turn==='w';
+ if(p.toUpperCase()==='P'||b[m.to])half2=0;
+ if(m.ep){const [r,c]=RC(m.to);b[idx(r+(W?1:-1),c)]='';}
+ b[m.to]=m.promo||p;b[m.from]='';
+ if(m.castle){const home=W?7:0;
+  if(m.to===idx(home,6)){b[idx(home,5)]=b[idx(home,7)];b[idx(home,7)]='';}
+  if(m.to===idx(home,2)){b[idx(home,3)]=b[idx(home,0)];b[idx(home,0)]='';}}
+ if(p==='K'){cast2.K=0;cast2.Q=0;}if(p==='k'){cast2.k=0;cast2.q=0;}
+ if(p==='R'&&m.from===idx(7,0))cast2.Q=0;if(p==='R'&&m.from===idx(7,7))cast2.K=0;
+ if(p==='r'&&m.from===idx(0,0))cast2.q=0;if(p==='r'&&m.from===idx(0,7))cast2.k=0;
+ if(m.to===idx(7,0))cast2.Q=0;if(m.to===idx(7,7))cast2.K=0;
+ if(m.to===idx(0,0))cast2.q=0;if(m.to===idx(0,7))cast2.k=0;
+ if(p.toUpperCase()==='P'&&Math.abs(RC(m.to)[0]-RC(m.from)[0])===2)ep2=idx((RC(m.from)[0]+RC(m.to)[0])/2,RC(m.from)[1]);
+ if(!W)full2++;
+ return {B:b,turn:W?'b':'w',cast:cast2,ep:ep2,half:half2,full:full2,m};}
+function evaluate(st){
+ let s=0;
+ for(let i=0;i<64;i++){const p=st.B[i];if(!p)continue;
+  const [r,c]=RC(i),up=p.toUpperCase(),w=isW(p);
+  const sq=w?(r*8+c):((7-r)*8+c);
+  let v=PIECES[up==='P'?(w?'P':'p'):up==='N'?(w?'N':'n'):up==='B'?(w?'B':'b'):up==='R'?(w?'R':'r'):up==='Q'?(w?'Q':'q'):'K'];
+  if(up==='P')v+=(w?1:-1)*PST.P[sq];if(up==='N')v+=(w?1:-1)*PST.N[sq]*0.4;
+  if(up==='K'){const t=PST.K[sq];v+=(w?1:-1)*t;}
+  s+=v;}
+ return st.turn==='w'?s:-s;}
+function search(st,depth,alpha,beta){
+ const ms=legalMoves(st);
+ if(!ms.length){
+  const ks=kingSq(st.B,st.turn==='w');
+  if(attacked(st.B,ks,st.turn!=='w'))return -100000-depth; // mated
+  return 0;}
+ if(st.half>=100)return 0;
+ if(!depth)return evaluate(st)+ms.length*0.5;
+ // order captures
+ ms.sort((a,b)=>((st.B[b.to]?1:0)-(st.B[a.to]?1:0)));
+ let best=-1e9;
+ for(const m of ms){const v=-search(doMove(st,m),depth-1,-beta,-alpha);
+  if(v>best)best=v;if(best>alpha)alpha=best;if(alpha>=beta)break;}
+ return best;}
+function bestMove(st,depth){
+ const ms=legalMoves(st);if(!ms.length)return null;
+ let best=null,ba=-1e9;
+ ms.sort(()=>Math.random()-0.5);
+ for(const m of ms){const v=-search(doMove(st,m),depth-1,-1e9,-ba);
+  if(v>ba){ba=v;best=m;}}
+ return best;}
+// SAN
+function san(st,m,all){
+ const p=st.B[m.from],up=p.toUpperCase();
+ let s='';
+ const caps=st.B[m.to]||m.ep;
+ if(up==='P'){
+  if(caps)s+='abcdefgh'[RC(m.from)[1]]+'x';
+  s+='abcdefgh'[RC(m.to)[1]]+(8-RC(m.to)[0]);
+  if(m.promo)s+='='+m.promo.toUpperCase();
+ }else{
+  if(m.castle)s=m.to%8===6?'O-O':'O-O-O';
+  else{
+   s+=up==='N'?'N':up;
+   // disambiguate
+   const others=all.filter(x=>x.to===m.to&&x.from!==m.from&&st.B[x.from].toUpperCase()===up&&!x.castle);
+   if(others.length){
+    const sameF=others.some(x=>RC(x.from)[1]===RC(m.from)[1]);
+    const sameR=others.some(x=>RC(x.from)[0]===RC(m.from)[0]);
+    if(!sameF)s+='abcdefgh'[RC(m.from)[1]];
+    else if(!sameR)s+=(8-RC(m.from)[0]);
+    else s+='abcdefgh'[RC(m.from)[1]]+(8-RC(m.from)[0]);}
+   if(caps)s+='x';
+   s+='abcdefgh'[RC(m.to)[1]]+(8-RC(m.to)[0]);}}
+ const s2=doMove(st,m);
+ const ks=kingSq(s2.B,s2.turn==='w');
+ if(attacked(s2.B,ks,s2.turn!=='w')){
+  s+=legalMoves(s2).length?' +':' #';}
+ return s.replace(' ','');}
+// ---------- UI ----------
+const GLYPH={K:'♚',Q:'♛',R:'♜',B:'♝',N:'♞',P:'♟',k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+const boardEl=document.getElementById('board');
+let cells=[],sel=-1,curMoves=[],lastMove=null,flipped=false,vsCPU=true,humanColor='w',comments={};
+function cur(){return {B,turn,cast:{...cast},ep,half,full};}
+function setCur(s){restore(s);}
+function render(){
+ boardEl.innerHTML='';cells=[];
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+  const rr=flipped?7-r:r,cc=flipped?7-c:c;
+  const d=document.createElement('div');
+  const i=idx(rr,cc);
+  d.className='sq '+(((rr+cc)%2)?'d':'l');
+  const p=B[i];
+  if(p){const s=document.createElement('span');s.className='pc';s.textContent=GLYPH[p];
+   if(isW(p)){s.style.color='#f7f0dd';s.style.textShadow='0 0 2px #000,1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000';}
+   else{s.style.color='#1a1210';s.style.textShadow='0 0 2px #f7f0dd,1px 1px 0 #f7f0dd,-1px -1px 0 #f7f0dd,1px -1px 0 #f7f0dd,-1px 1px 0 #f7f0dd';}
+   d.appendChild(s);}
+  // vintage engraved coordinates: files along bottom, ranks along left (from viewer's side)
+  const file=flipped?7-c:c, rank=flipped?r+1:8-r;
+  if(r===7){const t=document.createElement('span');t.className='coord';t.textContent='abcdefgh'[file];t.style.right='3px';t.style.bottom='2px';d.appendChild(t);}
+  if(c===0){const t=document.createElement('span');t.className='coord';t.textContent=rank;t.style.left='3px';t.style.top='2px';d.appendChild(t);}
+  if(i===sel)d.classList.add('sel');
+  if(lastMove&&(i===lastMove.from||i===lastMove.to))d.classList.add('last');
+  if(curMoves.some(m=>m.to===i))d.classList.add(st.B?.[i]||B[i]?'cap':'mv');
+  d.onclick=()=>click(i);
+  boardEl.appendChild(d);cells.push(d);}
+ renderMoves();}
+function st(){return cur();}
+function click(i){
+ if(replayMode){setStatus('Replay mode — press Live game to play');return;}
+ const all=legalMoves(cur());
+ if(sel>=0&&curMoves.some(m=>m.to===i)){
+  let m=curMoves.find(m=>m.to===i);
+  if(m.promo){
+    const ch=prompt('Promote to? Q R B N (default Q)','Q')||'Q';
+    m.promo=(turn==='w'? ch.toUpperCase() : ch.toLowerCase());
+  }
+  pushMove(m);sel=-1;curMoves=[];
+  afterHuman();return;}
+ const p=B[i];
+ if(p&&(isW(p)===(turn==='w'))){
+  sel=i;curMoves=all.filter(m=>m.from===i);render();return;}
+ sel=-1;curMoves=[];render();}
+function state(){return {B:B.slice(),turn,cast:{...cast},ep,half,full};}
+function pushMove(m){
+ hist.push({move:m,san:san(cur(),m,legalMoves(cur())),prev:clone(),cmt:comments[hist.length]||''});
+ const s2=doMove(cur(),m);setCur(s2);lastMove=m;redo_=[];
+ render();}
+function afterHuman(){
+ render();
+ const s=status();
+ setStatus(s);
+ if(s.includes('#')||s.includes('stalemate')||s.includes('draw'))return;
+ if(vsCPU&&turn!==humanColor){
+  setStatus('Computer thinking…');
+  setTimeout(()=>{
+   const bm=bestMove(cur(),+$('depth').value);
+   if(bm){pushMove(bm);setStatus(status());}
+  },60);}}
+function status(){
+ const ms=legalMoves(cur());
+ const inChk=attacked(B,kingSq(B,turn==='w'),turn!=='w');
+ if(!ms.length)return inChk?('Checkmate — '+(turn==='w'?'Black':'White')+' wins #'):'Stalemate — draw';
+ if(half>=100)return 'Draw — 100 halfmoves';
+ return (turn==='w'?'White':'Black')+' to move'+(inChk?' +':'');}
+function setStatus(s){document.getElementById('status').textContent=s;}
+function $(id){return document.getElementById(id);}
+function renderMoves(){
+ const el=$('moves');let t='';
+ hist.forEach((h,i)=>{if(i%2===0)t+=(i/2+1)+'. ';t+=h.san+' ';if(h.cmt)t+=`{${h.cmt}} `;});
+ el.textContent=t||'(no moves yet)';el.scrollTop=el.scrollHeight;
+ $('depthv').textContent=$('depth').value;}
+// ---------- database (famous games, move text) ----------
+const DB=[
+ {n:'The Opera Game — Morphy vs Duke Karl (1858)',pgn:'e4 e5 Nf3 d6 d4 Bg4 dxe5 Bxf3 Qxf3 dxe5 Bc4 Nf6 Qb3 Qe7 Bxf7+ Kd8 Qb5 c6 Qxc6 Nxc6 Bxc6+ bxc6 Qxc6 Rb8 Rxa2 Qxa2 Qxc8#'},
+ {n:'Evergreen Game — Anderssen vs Dufresne (1852)',pgn:'e4 e5 Nf3 Nc6 d4 exd4 Nxd4 Nf6 Nxc6 bxc6 e5 Qe7 Qe2 Nd5 c4 Ba6 Nbd2 Nb6 b3 Qe6 Bb2 Bb4 a3 Bxd2+ Qxd2 O-O-O O-O-O Rhe8 Rhg1 Bf5 Qe3 Qd7 Rd5 Qc7 Rxd5 cxd5 Qxe8+ Qxe8 Rxe8+ Kb7 Bd3 Kc6 Bxf5 d4 Bxd4 Kb5 Be3+ Kb6 Rf1 Rc8 Rxf7 Rxc4 Rxa7 Kxa7 Qa4+ Kb6 Qb4+ Ka6 Qa4+ Kb6 Qa5+ Kb7 Qb5+ Ka7 Qb6+ Ka8 Qc6+ Kb8 Bb6'},
+ {n:'Immortal Game — Anderssen vs Kieseritzky (1851)',pgn:'e4 e5 f4 exf4 Bc4 Qh4+ Kf1 b5 Bxb5 Nf6 Nf3 Qh6 d3 Nh5 Nh4 Qg5 Nf5 c6 g4 Nf6 Rg1 cxb5 h4 Qg6 h5 Qg5 Qf3 Ng8 hxg6 Bb7 Bf4 Qf6 Nc3 Bc5 Nd5 Qxb2 Bd6 Bxg1 e5 Qxa1+ Ke2 Na6 Nxg7+ Kd8 Qf6+ Nxf6 Be7#'},
+ {n:'Fischer vs Spassky, Game 6 (1972)',pgn:'c4 e6 Nf3 d5 d4 Nf6 Nc3 Bb4 cxd5 exd5 g3 Nf6 Bg2 O-O O-O Re8 a3 Bd6 b4 Bd7 Bb2 Rc8 Rc1 h6 d5 Bf8 Qd2 Nbd7 Rfd1 Nb6 Nb5 Bb8 a4 a6 Nc3 Nbd7 e4 dxe4 Nxe4 Nxe4 Qxe4 Nf6 Qd3 c6 Qd4 Bb8 Rxc6 Bxc6 dxc6 Qe7 Nd4 Qe5 Nf5 Qxd4 Rxd4 Ne7 Nxe7+ Rxe7 Rc1 Re5 Rc4 g6 g4 h5 h3 hxg4 hxg4 Re4 Rxe4 Bxe4 Bd5 Bxd5 Qxd5 Qxd5+ Kh7 f4 f6 Kf2 fxg5 fxg5 Bxg5 Bxg5 Kxg5 Kf5 Kf3 Ke5 Ke3 Kd5 Kd3 Kc5 Kc4 Kb6 Kb4 Ka6 Ka4 Kb6 Ka3 Kb5 Kb3 Kc5 Kc4 Kd6 Kd4 Ke6 Ke4 Kf6 Kf4'},
+ {n:'Kasparov vs Topalov, Wijk aan Zee (1999)',pgn:'e4 d6 d4 Nf6 Nc3 g6 Be3 Bg7 Qd2 c6 f3 b5 Nge2 Nbd7 Bh6 Bxh6 Qxh6 Bb7 a3 e5 O-O-O Qe7 Kb1 a6 Nc1 O-O-O Nb3 exd4 Rxd4 c5 Rxd6 Rxd6 Rxd6 Qxd6 Qxd6+ Kxd6 Nxd4 cxd4 Nxd4 Kc6 Ndf5 gxf5 Nxf5 Kc5 Ne7+ Kd6 Nec6+ Ke6 Nxb8+ Rb8 Nxa6 f5 exf5+ Kxf5 Bd3+ Kg5 Be2 h5 h4+ Kh6 g3 hxg3 fxg4 Bxg4 Bxa6 Bxd1 Bxd1 Rg8 Bf3 Rg6 Bd5 Rg5 Be4 Rxe5 Bd5+ Kh5 Bf3+ Kh6 a4 Rg5 axb5 Rxb5 b3 Ra5 Kb2 Ra6 Kc3 Ra5 Kd4 Rd5+ Ke4 Rg5 Be2 Rg6 Bf3 Rg5'},
+ {n:'Scholar\u2019s Mate (miniature)',pgn:'e4 e5 Qh5 Nc6 Bc4 Nf6 Qxf7#'}];
+function parseSANList(txt){
+ startPos();const toks=txt.split(/\s+/).filter(t=>t&&!/^\d+\.?$/.test(t)&&t!=='1-0'&&t!=='0-1');
+ const out=[];
+ for(let tok of toks){
+  tok=tok.replace(/[+#?!]+$/,'').replace(/\.+$/,'');
+  if(!tok)continue;
+  const all=legalMoves(cur());
+  let m=null;
+  if(tok==='O-O'||tok==='O-O-O'){m=all.find(x=>x.castle&&(tok==='O-O'?x.to%8===6:x.to%8===2));}
+  else{
+   for(const cand of all){if(san(cur(),cand,all).replace(/[+#]+$/,'')===tok){m=cand;break;}}}
+  if(!m){console.warn('unparsed',tok);break;}
+  out.push(m);setCur(doMove(cur(),m));}
+ return out;}
+let replayMode=false,replayMoves=[],replayIdx=0;
+function loadGame(i){
+ const g=DB[i];
+ startPos();replayMoves=parseSANList(g.pgn);startPos();
+ replayMode=true;replayIdx=0;hist=[];lastMove=null;sel=-1;curMoves=[];
+ // precompute SANs
+ const sans=[];{
+  startPos();
+  for(const m of replayMoves){sans.push(san(cur(),m,legalMoves(cur())));setCur(doMove(cur(),m));}
+  startPos();}
+ replayMoves.sans=sans;
+ setStatus(g.n+' — use Prev/Next');
+ render();}
+function replayTo(k){
+ startPos();hist=[];lastMove=null;
+ const sans=replayMoves.sans||[];
+ for(let i=0;i<k;i++){const m=replayMoves[i];
+  hist.push({move:m,san:sans[i]||'',prev:null,cmt:''});
+  setCur(doMove(cur(),m));lastMove=m;}
+ replayIdx=k;render();
+ setStatus(`Move ${k}/${replayMoves.length}`);}
+$('dblist');DB.forEach((g,i)=>{const o=document.createElement('option');o.value=i;o.textContent=g.n;$('dblist').appendChild(o);});
+$('dblist').onchange=e=>loadGame(+e.target.value);
+$('next').onclick=()=>{if(!replayMode)return;if(replayIdx<replayMoves.length)replayTo(replayIdx+1);};
+$('prev').onclick=()=>{if(!replayMode)return;if(replayIdx>0)replayTo(replayIdx-1);};
+$('start0').onclick=()=>{if(replayMode)replayTo(0);};
+$('live').onclick=()=>{replayMode=false;newGame('w');};
+// ---------- play ----------
+function newGame(hc){
+ startPos();hist=[];lastMove=null;sel=-1;curMoves=[];replayMode=false;
+ humanColor=hc;vsCPU=true;
+ render();setStatus(status()+(hc==='b'?' — computer (White) moves first':''));
+ if(hc==='b'){setTimeout(()=>{const bm=bestMove(cur(),+$('depth').value);if(bm){pushMove(bm);setStatus(status());}},80);}}
+$('newW').onclick=()=>newGame('w');
+$('newB').onclick=()=>newGame('b');
+$('depth').oninput=renderMoves;
+$('flip').onclick=()=>{flipped=!flipped;render();};
+$('hint').onclick=()=>{const bm=bestMove(cur(),3);if(!bm)return;
+ sel=bm.from;curMoves=legalMoves(cur()).filter(m=>m.from===bm.from);render();
+ setStatus('Hint: '+san(cur(),bm,legalMoves(cur())));};
+$('cmt').addEventListener('keydown',e=>{if(e.key==='Enter'&&hist.length){hist[hist.length-1].cmt=e.target.value;e.target.value='';renderMoves();}});
+// PGN export/import (moves only + comments)
+$('pgnExp').onclick=()=>{
+ let s='[White "You"]\n[Black "ExaChess engine"]\n\n';let t='';
+ hist.forEach((h,i)=>{if(i%2===0)t+=(i/2+1)+'. ';t+=h.san+' ';if(h.cmt)t+=`{${h.cmt}} `;});
+ $('pgnbox').value=s+t.trim()+' *';};
+$('pgnImp').onclick=()=>{
+ const txt=$('pgnbox').value.replace(/\{[^}]*\}/g,' ').replace(/\[[^\]]*\]/g,' ');
+ const toks=txt.split(/\s+/).filter(t=>t&&!/^\d+\.+$/.test(t)&&!/^\d+\.$/.test(t)&&t!=='*'&&t!=='1-0'&&t!=='0-1'&&t!=='1/2-1/2');
+ startPos();hist=[];replayMode=false;
+ for(let tok of toks){tok=tok.replace(/\.+$/,'');const all=legalMoves(cur());
+  const m=all.find(x=>san(cur(),x,all).replace(/[+#]+$/,'')===tok.replace(/[+#]+$/,''));
+  if(!m){setStatus('Import stopped at: '+tok);break;}
+  hist.push({move:m,san:san(cur(),m,all),prev:null,cmt:''});setCur(doMove(cur(),m));lastMove=m;}
+ render();setStatus(status());};
+$('save').onclick=()=>{localStorage.setItem('exachess',JSON.stringify({hist:hist.map(h=>({san:h.san,cmt:h.cmt})),pgn:$('pgnbox').value}));setStatus('Saved locally');};
+$('load').onclick=()=>{const d=JSON.parse(localStorage.getItem('exachess')||'null');if(!d)return;
+ startPos();hist=[];replayMode=false;
+ for(const h of d.hist){const all=legalMoves(cur());
+  const m=all.find(x=>san(cur(),x,all).replace(/[+#]+$/,'')===h.san.replace(/[+#]+$/,''));
+  if(!m)break;hist.push({move:m,san:h.san,prev:null,cmt:h.cmt||''});setCur(doMove(cur(),m));lastMove=m;}
+ render();setStatus(status());};
+startPos();render();setStatus(status());
+</script>
+</body>
+</html>

@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DAtabase — Homage (1988)</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#555;font-family:Geneva,Chicago,Verdana,sans-serif;font-size:13px}
+#bar{height:30px;background:#fff;border-bottom:2px solid #000;display:flex;align-items:center;font-weight:bold;font-size:14px;padding:0 12px;gap:14px}
+#main{display:flex;height:calc(100% - 30px);max-width:1100px;margin:0 auto}
+#side{width:250px;background:#ddd;border-right:2px solid #000;padding:8px;overflow-y:auto}
+#side h3{font-size:12px;margin:8px 0 4px;border-bottom:2px solid #000;padding-bottom:2px}
+#view{flex:1;background:#fff;display:flex;flex-direction:column;min-width:0}
+#toolbar{background:#eee;border-bottom:2px solid #000;padding:4px 8px;display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+button{font-family:inherit;border:2px outset #fff;background:#e4e4e4;padding:3px 9px;cursor:pointer;font-size:12px}
+button:active{border-style:inset}button.primary{background:#000;color:#fff;font-weight:bold}
+input,select{font-family:inherit;font-size:12px;border:2px inset #fff;padding:3px;margin:1px}
+#cards{flex:1;overflow-y:auto;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-content:flex-start;background:#999}
+.card{background:#fff;border:2px solid #000;box-shadow:4px 4px 0 rgba(0,0,0,.5);width:250px;padding:8px;position:relative}
+.card.marked{outline:3px solid #c00}
+.card .mk{position:absolute;top:4px;right:4px;cursor:pointer;font-size:16px}
+.card h4{margin:0 0 4px;font-size:13px;border-bottom:1px solid #999;padding-bottom:2px}
+.card label{display:block;font-size:11px;color:#333;margin:3px 0}
+.card input[type=text],.card input[type=number],.card select{width:100%}
+table.list{width:100%;border-collapse:collapse;background:#fff;font-size:12px}
+table.list th,table.list td{border:1px solid #888;padding:3px 6px;text-align:left}
+table.list th{background:#000;color:#fff;cursor:pointer}
+table.list tr.marked td{background:#fdd}
+#finder{display:flex;flex-wrap:wrap;gap:8px;padding:10px}
+.dicon{width:90px;text-align:center;cursor:pointer;font-size:12px;padding:6px;border:2px solid transparent}
+.dicon:hover,.dicon.on{border:2px dotted #000;background:#ff9}
+.dicon .im{font-size:34px}
+@media(max-width:800px){#main{flex-direction:column}#side{width:100%;border-right:none;border-bottom:2px solid #000}}
+@media print{#bar,#side,#toolbar{display:none}#main{display:block}#cards{display:block;background:#fff}.card{box-shadow:none;break-inside:avoid}}
+</style>
+</head>
+<body>
+<div id="bar"><span></span><span>File</span><span>Edit</span><span><u>DAtabase DA</u></span><span style="margin-left:auto;font-weight:normal">Andrew Welch 1988 homage</span></div>
+<div id="main">
+<div id="side">
+<h3>▤ MiniFinder — databases</h3>
+<div id="finder"></div>
+<div><button id="newdb" class="primary">New database</button>
+<button id="exdb">Example DB</button></div>
+<h3>🔨 Builder — fields</h3>
+<div id="fields"></div>
+<div><input id="fname" placeholder="field name" style="width:100%">
+<select id="ftype"><option value="text">text</option><option value="number">number</option><option value="check">check-box</option><option value="pop">pop-up list</option><option value="calc">calculated</option></select>
+<input id="fopts" placeholder="options (pop: a,b,c) or formula (calc: Price*Qty)" style="width:100%">
+<button id="addf">Add field</button></div>
+<h3>🔎 Search</h3>
+<input id="q" placeholder="search all fields" style="width:100%">
+<select id="qf" style="width:100%"></select>
+<button id="go">Search</button> <button id="clr">Show all</button>
+<h3>⇅ Sort (up to 3)</h3>
+<select id="s1"></select><select id="s2"></select><select id="s3"></select>
+<button id="sort">Sort</button>
+<h3>⇄ Converter</h3>
+<button id="imp">Import CSV/text</button>
+<button id="exp">Export CSV</button>
+<button id="expJ">Export JSON</button>
+<input type="file" id="file" accept=".csv,.txt" style="width:100%">
+</div>
+<div id="view">
+<div id="toolbar">
+<button id="vcard" class="primary">🗂 Cards</button><button id="vlist">☰ List</button>
+<button id="add" class="primary">+ Record</button><button id="del">− Delete</button>
+<button id="markall">Mark all</button><button id="unmark">Unmark</button>
+<button id="marked">Marked only</button><button id="prt">🖨 Print</button>
+<span id="stat" style="margin-left:auto"></span>
+</div>
+<div id="cards"></div>
+</div>
+</div>
+<script>
+"use strict";
+// DAtabase homage: flat-file manager. DBs in localStorage.
+const LS='database_homage';
+let store=JSON.parse(localStorage.getItem(LS)||'null')||null;
+let cur=null, view='card', markedOnly=false, found=null;
+function save(){localStorage.setItem(LS,JSON.stringify(store));}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function exampleDB(){return {id:uid(),name:'Books',fields:[
+ {n:'Title',t:'text'},{n:'Author',t:'text'},{n:'Year',t:'number'},
+ {n:'Genre',t:'pop',o:'Sci-Fi,History,Poetry,Manual'},
+ {n:'Read',t:'check'},{n:'Price',t:'number'},{n:'Qty',t:'number'},
+ {n:'Total',t:'calc',o:'Price*Qty'}],
+ records:[
+  {Title:'Dune',Author:'Frank Herbert',Year:'1965',Genre:'Sci-Fi',Read:1,Price:'9',Qty:'2'},
+  {Title:'MacUser Jul 1989',Author:'Wiggins',Year:'1989',Genre:'Manual',Read:0,Price:'5',Qty:'1'}],
+ marked:[]};}
+if(!store){store={dbs:[exampleDB()]};save();}
+cur=store.dbs[0].id;
+const $=id=>document.getElementById(id);
+const db=()=>store.dbs.find(d=>d.id===cur);
+function calcVal(f,rec){
+ try{let e=String(f.o||'');for(const g of db().fields){if(g.t==='number'){const v=parseFloat(rec[g.n])||0;e=e.replace(new RegExp('\\b'+g.n+'\\b','g'),'('+v+')');}}
+  const v=Function('"use strict";return('+e+')')();return (typeof v==='number'&&isFinite(v))?String(Math.round(v*100)/100):'';}
+ catch{return '';}}
+function recs(){let r=db().records;
+ if(found!==null)r=r.filter((_,i)=>found.has(i));
+ if(markedOnly){const m=new Set(db().marked);r=r.filter((_,i)=>m.has(db().records.indexOf(r[i])));}
+ return r;}
+// MiniFinder
+function renderFinder(){const f=$('finder');f.innerHTML='';
+ store.dbs.forEach(d=>{const e=document.createElement('div');e.className='dicon'+(d.id===cur?' on':'');
+  e.innerHTML='<div class="im">🗄</div><span></span>';e.querySelector('span').textContent=d.name;
+  e.onclick=()=>{cur=d.id;found=null;markedOnly=false;renderAll();};
+  e.ondblclick=()=>{const n=prompt('Rename database',d.name);if(n){d.name=n;save();renderAll();}};
+  f.appendChild(e);});}
+$('newdb').onclick=()=>{const n=prompt('Database name','Untitled');if(!n)return;
+ store.dbs.push({id:uid(),name:n,fields:[{n:'Name',t:'text'}],records:[],marked:[]});cur=store.dbs[store.dbs.length-1].id;found=null;save();renderAll();};
+$('exdb').onclick=()=>{store.dbs.push(exampleDB());save();renderAll();};
+// Builder
+function renderFields(){const f=$('fields');f.innerHTML='';
+ db().fields.forEach((g,i)=>{const e=document.createElement('div');
+  e.innerHTML=`<b></b> <small></small> <button>✕</button> `;
+  e.querySelector('b').textContent=g.n;e.querySelector('small').textContent='['+g.t+(g.o?':'+g.o:'')+']';
+  e.querySelector('button').onclick=()=>{if(!confirm('Delete field '+g.n+'?'))return;
+   db().fields.splice(i,1);db().records.forEach(r=>delete r[g.n]);save();renderAll();};
+  f.appendChild(e);});
+ const opts=['','all fields',...db().fields.map(g=>g.n)];
+ $('qf').innerHTML=opts.map(o=>`<option>${o}</option>`).join('');
+ for(const id of ['s1','s2','s3']){const cur0=$(id).value;
+  $(id).innerHTML='<option value="">—</option>'+db().fields.map(g=>`<option>${g.n}</option>`).join('');
+  $(id).value=cur0;}}
+$('addf').onclick=()=>{const n=$('fname').value.trim();if(!n)return alert('name the field');
+ const t=$('ftype').value,o=$('fopts').value.trim();
+ db().fields.push({n,t,o});$('fname').value='';$('fopts').value='';save();renderAll();};
+// Cards / list
+function fieldInput(g,v,rec){
+ if(g.t==='check'){const c=document.createElement('input');c.type='checkbox';c.checked=!!+v;
+  c.onchange=()=>{rec[g.n]=c.checked?1:0;save();renderAll();};return c;}
+ if(g.t==='pop'){const s=document.createElement('select');const os=String(g.o||'').split(',').map(s=>s.trim()).filter(Boolean);
+  s.innerHTML='<option value="">—</option>'+os.map(o=>`<option ${o===v?'selected':''}>${o}</option>`).join('');
+  s.onchange=()=>{rec[g.n]=s.value;save();};return s;}
+ if(g.t==='calc'){const s=document.createElement('span');s.textContent=calcVal(g,rec);s.style.fontWeight='bold';return s;}
+ const c=document.createElement('input');c.type=g.t==='number'?'number':'text';c.value=v??'';
+ c.onchange=()=>{rec[g.n]=c.value;save();renderAll();};return c;}
+function renderCards(){
+ const el=$('cards');const d=db(),R=recs();
+ $('stat').textContent=`${R.length}/${d.records.length} records`;
+ if(view==='list'){
+  const t=document.createElement('table');t.className='list';
+  t.innerHTML='<tr><th>★</th>'+d.fields.map(g=>`<th>${g.n}</th>`).join('')+'<th></th></tr>';
+  R.forEach(rec=>{const gi=d.records.indexOf(rec);const tr=document.createElement('tr');
+   if(d.marked.includes(gi))tr.className='marked';
+   tr.innerHTML='<td>'+(d.marked.includes(gi)?'★':'')+'</td>'+d.fields.map(g=>{
+    const v=g.t==='calc'?calcVal(g,rec):(rec[g.n]??'');return `<td>${String(v).slice(0,60)}</td>`;}).join('');
+   const del=document.createElement('button');del.textContent='−';del.onclick=()=>{d.records.splice(gi,1);d.marked=d.marked.filter(m=>m!==gi);save();renderAll();};
+   const td=document.createElement('td');td.appendChild(del);tr.appendChild(td);
+   tr.onclick=e=>{if(e.target.tagName!=='BUTTON'){togMark(gi);}};
+   t.appendChild(tr);});
+  el.innerHTML='';el.appendChild(t);return;}
+ el.innerHTML='';
+ R.forEach(rec=>{const gi=d.records.indexOf(rec);
+  const c=document.createElement('div');c.className='card'+(d.marked.includes(gi)?' marked':'');
+  const mk=document.createElement('span');mk.className='mk';mk.textContent=d.marked.includes(gi)?'★':'☆';
+  mk.onclick=()=>togMark(gi);c.appendChild(mk);
+  const h=document.createElement('h4');h.textContent=rec[d.fields[0]?.n]||'(untitled)';c.appendChild(h);
+  d.fields.forEach(g=>{const l=document.createElement('label');l.textContent=g.n+(g.t==='calc'?' = '+g.o:'');
+   c.appendChild(l);c.appendChild(fieldInput(g,rec[g.n],rec));});
+  el.appendChild(c);});}
+function togMark(gi){const m=db().marked;const i=m.indexOf(gi);
+ if(i>=0)m.splice(i,1);else m.push(gi);save();renderCards();}
+$('vcard').onclick=()=>{view='card';$('vcard').classList.add('primary');$('vlist').classList.remove('primary');renderCards();};
+$('vlist').onclick=()=>{view='list';$('vlist').classList.add('primary');$('vcard').classList.remove('primary');renderCards();};
+$('add').onclick=()=>{const r={};db().fields.forEach(g=>r[g.n]=g.t==='check'?0:'');db().records.push(r);found=null;save();renderAll();};
+$('del').onclick=()=>{const m=[...db().marked].sort((a,b)=>b-a);if(!m.length)return alert('Mark ★ records first');
+ if(!confirm('Delete '+m.length+' marked?'))return;m.forEach(i=>db().records.splice(i,1));db().marked=[];save();renderAll();};
+$('markall').onclick=()=>{db().marked=db().records.map((_,i)=>i);save();renderCards();};
+$('unmark').onclick=()=>{db().marked=[];markedOnly=false;save();renderCards();};
+$('marked').onclick=()=>{markedOnly=!markedOnly;$('marked').classList.toggle('primary',markedOnly);renderCards();};
+$('prt').onclick=()=>window.print();
+// Search
+function cmp(v,op,t){
+ if(op==='contains')return String(v??'').toLowerCase().includes(t.toLowerCase());
+ const n=parseFloat(v),m=parseFloat(t);
+ if(!isNaN(n)&&!isNaN(m)){return op==='='?n===m:op==='>'?n>m:op==='<'?n<m:n!==m;}
+ const s=String(v??''),u=String(t);
+ return op==='='?s===u:s!==u;}
+$('go').onclick=()=>{
+ const q=$('q').value,f=$('qf').value;
+ if(!q){found=null;renderCards();return;}
+ let op='contains',t=q;
+ const mm=q.match(/^(=|>|<|!=)\s*(.*)$/);if(mm){op=mm[1]==='!='?'!':mm[1];t=mm[2];}
+ found=new Set();
+ db().records.forEach((r,i)=>{const fields=f&&f!=='all fields'?[f]:db().fields.map(g=>g.n);
+  if(fields.some(fn=>cmp(r[fn],op,t)))found.add(i);});
+ renderCards();};
+$('clr').onclick=()=>{$('q').value='';found=null;markedOnly=false;$('marked').classList.remove('primary');renderCards();};
+// Sort
+$('sort').onclick=()=>{
+ const keys=[$('s1').value,$('s2').value,$('s3').value].filter(Boolean);
+ if(!keys.length)return;
+ const desc=event.shiftKey;
+ db().records.sort((a,b)=>{for(const k of keys){const x=a[k]??'',y=b[k]??'';
+  const n=parseFloat(x),m=parseFloat(y);let c=(!isNaN(n)&&!isNaN(m))?n-m:String(x).localeCompare(String(y));
+  if(c)return desc?-c:c;}return 0;});
+ save();renderCards();};
+// Converter: CSV
+function toCSV(rows,fields){const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+ return [fields.map(q).join(',')].concat(rows.map(r=>fields.map(f=>q(f==='calc'?calcVal(db().fields.find(g=>g.n===f),r):r[f])).join(','))).join('\n');}
+$('exp').onclick=()=>{const d=db(),fs=d.fields.map(g=>g.n);
+ dl(d.name+'.csv','text/csv',toCSV(d.records,fs));};
+$('expJ').onclick=()=>{dl(db().name+'.json','application/json',JSON.stringify(db(),null,1));};
+function dl(name,type,text){const a=document.createElement('a');a.download=name;
+ a.href=URL.createObjectURL(new Blob([text],{type}));a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+$('imp').onclick=()=>$('file').click();
+$('file').onchange=e=>{const f=e.target.files[0];if(!f)return;
+ const rd=new FileReader();rd.onload=()=>{
+  const lines=String(rd.result).split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length)return;
+  const delim=lines[0].includes('\t')?'\t':lines[0].includes(';')?';':',';
+  const head=lines[0].split(delim).map(s=>s.trim());
+  const useHead=head.length>1&&isNaN(parseFloat(head[0]));
+  const d=db();
+  if(useHead)head.forEach(h=>{if(h&&!d.fields.some(g=>g.n===h))d.fields.push({n:h,t:'text'});});
+  const fields=useHead?head:d.fields.map(g=>g.n);
+  lines.slice(useHead?1:0).forEach(l=>{const cells=l.split(delim);const r={};
+   fields.forEach((fn,i)=>r[fn]=(cells[i]??'').trim());d.records.push(r);});
+  save();renderAll();};
+ rd.readAsText(f);e.target.value='';};
+function renderAll(){renderFinder();renderFields();renderCards();}
+renderAll();
+</script>
+</body>
+</html>
